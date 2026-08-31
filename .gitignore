@@ -1,0 +1,40 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+publish/
+
+# NuGet
+packages/
+*.nupkg
+.nuget/
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+# Logs produced at runtime
+*.log
+[Ll]og/
+[Ll]ogs/
+
+# IDE / editor
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.sln.docstates
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Deliberately NOT ignored — these are tracked source inputs, not build output:
+#   code/lib/RoverLink.Telemetry.dll        vendor RL-100 SDK, no source available
+#   code/lib/RoverLink.Telemetry.xml        its API documentation
+#   code/src/RoverRally.App/Data/*.bin      shipped session cache
