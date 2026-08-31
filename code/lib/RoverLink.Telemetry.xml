@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>RoverLink.Telemetry</name>
+    </assembly>
+    <members>
+        <member name="T:RoverLink.Telemetry.Crc8">
+            <summary>
+            CRC-8 checksum used by every RoverLink frame (polynomial 0x07, initial value 0x00).
+            </summary>
+        </member>
+        <member name="T:RoverLink.Telemetry.TelemetryFrame">
+            <summary>
+            A single decoded telemetry report from an RL-100 equipped rover.
+            All values are transmitted in the units the flight controller uses;
+            scaling to display units is the responsibility of the host application.
+            </summary>
+        </member>
+        <member name="P:RoverLink.Telemetry.TelemetryFrame.LatitudeE7">
+            <summary>Latitude in degrees multiplied by 1e7.</summary>
+        </member>
+        <member name="P:RoverLink.Telemetry.TelemetryFrame.LongitudeE7">
+            <summary>Longitude in degrees multiplied by 1e7.</summary>
+        </member>
+        <member name="P:RoverLink.Telemetry.TelemetryFrame.HeadingDeci">
+            <summary>Heading in degrees multiplied by 10 (0 - 3599).</summary>
+        </member>
+        <member name="P:RoverLink.Telemetry.TelemetryFrame.SpeedCmS">
+            <summary>Ground speed in centimetres per second.</summary>
+        </member>
+        <member name="P:RoverLink.Telemetry.TelemetryFrame.BatteryMilliVolts">
+            <summary>Pack voltage in millivolts.</summary>
+        </member>
+        <member name="P:RoverLink.Telemetry.TelemetryFrame.SignalPercent">
+            <summary>Link quality, 0 - 100.</summary>
+        </member>
+        <member name="P:RoverLink.Telemetry.TelemetryFrame.MotorTempDeciC">
+            <summary>Motor temperature in degrees Celsius multiplied by 10.</summary>
+        </member>
+        <member name="P:RoverLink.Telemetry.TelemetryFrame.TiltDeciDeg">
+            <summary>Chassis tilt in degrees multiplied by 10.</summary>
+        </member>
+        <member name="P:RoverLink.Telemetry.TelemetryFrame.StatusFlags">
+            <summary>Bit 0 armed, bit 1 emergency stop latched, bit 2 charging, bit 3 GPS fix.</summary>
+        </member>
+        <member name="T:RoverLink.Telemetry.FrameCodec">
+             <summary>
+             Wire codec for the RoverLink RL-100 link.
+            
+             Telemetry frames (rover to station) are 37 bytes and begin with the
+             ASCII marker "RL". Command frames (station to rover) are 10 bytes and
+             begin with "RC". Both are protected by a trailing CRC-8.
+            
+             See RL-100 Integration Manual, revision D, section 4.
+             </summary>
+        </member>
+        <member name="M:RoverLink.Telemetry.FrameCodec.TryDecode(System.Byte[],System.Int32,RoverLink.Telemetry.TelemetryFrame@)">
+            <summary>
+            Decodes a telemetry frame. Returns false when the buffer is not a
+            well formed frame for a supported protocol version, or when the
+            checksum does not match.
+            </summary>
+        </member>
+        <member name="M:RoverLink.Telemetry.FrameCodec.EncodeCommand(System.Byte,System.Int16,System.Int16,System.Boolean,System.Boolean)">
+            <summary>
+            Builds a drive command frame. Throttle and steering are clamped to
+            the controller range of -1000 to 1000.
+            </summary>
+        </member>
+    </members>
+</doc>

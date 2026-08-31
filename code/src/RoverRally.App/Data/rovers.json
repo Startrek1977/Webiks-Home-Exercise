@@ -1,0 +1,32 @@
+[
+  {
+    "Id": 1,
+    "Name": "Falafel",
+    "ChassisType": "RR-4 Rock Crawler",
+    "RadioSerial": "RL100-0417"
+  },
+  {
+    "Id": 2,
+    "Name": "Dune Goblin",
+    "ChassisType": "RR-6 Dune Buggy",
+    "RadioSerial": "RL100-0388"
+  },
+  {
+    "Id": 3,
+    "Name": "Turbo Tortoise",
+    "ChassisType": "RR-2 Trainer",
+    "RadioSerial": "RL100-0501"
+  },
+  {
+    "Id": 4,
+    "Name": "Sandstorm",
+    "ChassisType": "RR-6 Dune Buggy",
+    "RadioSerial": "RL100-0392"
+  },
+  {
+    "Id": 5,
+    "Name": "Mishmish",
+    "ChassisType": "RR-4 Rock Crawler",
+    "RadioSerial": "RL100-0463"
+  }
+]

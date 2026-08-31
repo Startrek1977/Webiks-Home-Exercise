@@ -1,0 +1,61 @@
+<UserControl x:Class="RoverRally.App.Views.FleetView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#FF1E2229">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="220" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBlock Text="Search" Foreground="#FF8A93A3" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox x:Name="SearchBox" Width="200" Height="24" VerticalContentAlignment="Center"
+                     TextChanged="Filter_Changed" />
+            <TextBlock Text="Status" Foreground="#FF8A93A3" VerticalAlignment="Center" Margin="18,0,8,0" />
+            <ComboBox x:Name="StatusFilter" Width="140" Height="24" SelectionChanged="Filter_Changed">
+                <ComboBoxItem Content="All" IsSelected="True" />
+                <ComboBoxItem Content="Offline" />
+                <ComboBoxItem Content="Idle" />
+                <ComboBoxItem Content="Driving" />
+                <ComboBoxItem Content="Charging" />
+                <ComboBoxItem Content="Stopped" />
+            </ComboBox>
+        </StackPanel>
+
+        <DataGrid Grid.Row="1" x:Name="FleetGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                  Background="#FF23282F" Foreground="#FFE6E9EF" RowBackground="#FF23282F"
+                  AlternatingRowBackground="#FF262C34" GridLinesVisibility="Horizontal"
+                  HorizontalGridLinesBrush="#FF3A414C" BorderThickness="0"
+                  SelectionChanged="FleetGrid_SelectionChanged">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Rover" Binding="{Binding Name}" Width="160" />
+                <DataGridTextColumn Header="Chassis" Binding="{Binding ChassisType}" Width="130" />
+                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90" />
+                <DataGridTextColumn Header="Battery" Binding="{Binding BatteryPercent, StringFormat='{}{0}%'}" Width="80" />
+                <DataGridTextColumn Header="Speed (cm/s)" Binding="{Binding SpeedCmS}" Width="100" />
+                <DataGridTextColumn Header="Signal" Binding="{Binding SignalPercent, StringFormat='{}{0}%'}" Width="70" />
+                <DataGridTextColumn Header="Motor" Binding="{Binding MotorTemperatureC, StringFormat='{}{0:0.0} C'}" Width="80" />
+                <DataGridTextColumn Header="Radio" Binding="{Binding RadioSerial}" Width="120" />
+                <DataGridTextColumn Header="Last frame (UTC)" Binding="{Binding LastFrameUtc, StringFormat='{}{0:HH:mm:ss}'}" Width="*" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <TextBlock Grid.Row="2" Text="Recent runs" Foreground="#FF8A93A3" Margin="0,14,0,6" FontSize="12" />
+
+        <DataGrid Grid.Row="3" x:Name="HistoryGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                  Background="#FF23282F" Foreground="#FFE6E9EF" RowBackground="#FF23282F"
+                  AlternatingRowBackground="#FF262C34" GridLinesVisibility="Horizontal"
+                  HorizontalGridLinesBrush="#FF3A414C" BorderThickness="0">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Rover" Binding="{Binding RoverName}" Width="160" />
+                <DataGridTextColumn Header="Started (UTC)" Binding="{Binding Started}" Width="170" />
+                <DataGridTextColumn Header="Duration" Binding="{Binding Duration}" Width="110" />
+                <DataGridTextColumn Header="Distance" Binding="{Binding Distance}" Width="110" />
+                <DataGridTextColumn Header="Peak speed" Binding="{Binding PeakSpeed}" Width="*" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+</UserControl>
