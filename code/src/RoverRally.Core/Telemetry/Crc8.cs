@@ -19,10 +19,14 @@ namespace RoverRally.Core.Telemetry
         /// </summary>
         public static byte Compute(byte[] buffer, int offset, int count)
         {
-            if (buffer == null) throw new ArgumentNullException("buffer");
-            if (offset < 0) throw new ArgumentOutOfRangeException("offset", "The offset cannot be negative.");
-            if (count < 0) throw new ArgumentOutOfRangeException("count", "The count cannot be negative.");
-            if (offset + count > buffer.Length) throw new ArgumentOutOfRangeException("count", "The range runs past the end of the buffer.");
+            if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+            if (offset < 0) throw new ArgumentOutOfRangeException(nameof(offset), "The offset cannot be negative.");
+            if (count < 0) throw new ArgumentOutOfRangeException(nameof(count), "The count cannot be negative.");
+
+            // Written as a subtraction rather than "offset + count > buffer.Length"
+            // so that a large offset or count cannot overflow past the check and
+            // reach the indexer below.
+            if (offset > buffer.Length - count) throw new ArgumentOutOfRangeException(nameof(count), "The range runs past the end of the buffer.");
 
             byte crc = InitialValue;
 

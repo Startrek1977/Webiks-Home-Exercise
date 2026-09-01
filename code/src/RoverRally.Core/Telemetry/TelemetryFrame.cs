@@ -35,40 +35,40 @@ namespace RoverRally.Core.Telemetry
         }
 
         /// <summary>Identifier of the reporting vehicle.</summary>
-        public byte RoverId { get; private set; }
+        public byte RoverId { get; }
 
         /// <summary>Transmission sequence number. Per transmission, not per vehicle, and it wraps.</summary>
-        public uint Sequence { get; private set; }
+        public uint Sequence { get; }
 
         /// <summary>Milliseconds since the unix epoch, UTC.</summary>
-        public ulong TimestampMs { get; private set; }
+        public ulong TimestampMs { get; }
 
         /// <summary>Latitude in degrees multiplied by 1e7.</summary>
-        public int LatitudeE7 { get; private set; }
+        public int LatitudeE7 { get; }
 
         /// <summary>Longitude in degrees multiplied by 1e7.</summary>
-        public int LongitudeE7 { get; private set; }
+        public int LongitudeE7 { get; }
 
         /// <summary>Heading in degrees multiplied by 10 (0 - 3599).</summary>
-        public ushort HeadingDeci { get; private set; }
+        public ushort HeadingDeci { get; }
 
         /// <summary>Ground speed in centimetres per second.</summary>
-        public ushort SpeedCmS { get; private set; }
+        public ushort SpeedCmS { get; }
 
         /// <summary>Pack voltage in millivolts.</summary>
-        public ushort BatteryMilliVolts { get; private set; }
+        public ushort BatteryMilliVolts { get; }
 
         /// <summary>Link quality, 0 - 100.</summary>
-        public byte SignalPercent { get; private set; }
+        public byte SignalPercent { get; }
 
         /// <summary>Motor temperature in degrees Celsius multiplied by 10.</summary>
-        public short MotorTempDeciC { get; private set; }
+        public short MotorTempDeciC { get; }
 
         /// <summary>Chassis tilt in degrees multiplied by 10.</summary>
-        public short TiltDeciDeg { get; private set; }
+        public short TiltDeciDeg { get; }
 
         /// <summary>Bit 0 armed, bit 1 emergency stop latched, bit 2 charging, bit 3 GPS fix.</summary>
-        public byte StatusFlags { get; private set; }
+        public byte StatusFlags { get; }
 
         public bool IsArmed
         {

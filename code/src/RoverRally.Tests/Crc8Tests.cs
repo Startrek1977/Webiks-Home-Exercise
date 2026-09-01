@@ -89,5 +89,19 @@ namespace RoverRally.Tests
         {
             Crc8.Compute(new byte[4], 2, 3);
         }
+
+        [TestMethod]
+        [ExpectedException(typeof(ArgumentOutOfRangeException))]
+        public void RejectsAnOffsetLargeEnoughToOverflowTheBoundsCheck()
+        {
+            Crc8.Compute(new byte[4], int.MaxValue, 1);
+        }
+
+        [TestMethod]
+        [ExpectedException(typeof(ArgumentOutOfRangeException))]
+        public void RejectsACountLargeEnoughToOverflowTheBoundsCheck()
+        {
+            Crc8.Compute(new byte[4], 1, int.MaxValue);
+        }
     }
 }
