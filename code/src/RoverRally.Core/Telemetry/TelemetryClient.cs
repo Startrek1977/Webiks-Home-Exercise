@@ -2,7 +2,6 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
-using RoverLink.Telemetry;
 using RoverRally.Core.Logging;
 
 namespace RoverRally.Core.Telemetry

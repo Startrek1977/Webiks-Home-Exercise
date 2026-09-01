@@ -37,11 +37,6 @@
       <HintPath>..\..\packages\Newtonsoft.Json.6.0.8\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="RoverLink.Telemetry, Version=1.4.2.0, Culture=neutral, processorArchitecture=x86">
-      <HintPath>..\..\lib\RoverLink.Telemetry.dll</HintPath>
-      <Private>True</Private>
-      <SpecificVersion>False</SpecificVersion>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
@@ -65,7 +60,10 @@
     <Compile Include="Session\SessionCacheFile.cs" />
     <Compile Include="Session\SessionCacheRecord.cs" />
     <Compile Include="Telemetry\CommandSender.cs" />
+    <Compile Include="Telemetry\Crc8.cs" />
+    <Compile Include="Telemetry\FrameCodec.cs" />
     <Compile Include="Telemetry\TelemetryClient.cs" />
+    <Compile Include="Telemetry\TelemetryFrame.cs" />
     <Compile Include="Telemetry\TelemetryReceivedEventArgs.cs" />
     <Compile Include="Units\BatteryGauge.cs" />
     <Compile Include="Units\SpeedConverter.cs" />

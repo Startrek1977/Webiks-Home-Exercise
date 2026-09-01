@@ -99,17 +99,20 @@ Worked example: the CRC of the three bytes `01 02 03` is `0x48`.
 
 ---
 
-## SDK notes
+## Codec
 
-`RoverLink.Telemetry.dll` wraps the above so you do not have to touch bytes:
+The vendor shipped `RoverLink.Telemetry.dll` as a 32-bit-only binary and then
+stopped trading, so a 64-bit process could not load it. It has been replaced by
+a managed reimplementation of the above, written against this document and the
+simulator's `FrameWriter`, in `RoverRally.Core.Telemetry`:
 
 - `FrameCodec.TryDecode(byte[] buffer, int length, out TelemetryFrame frame)`
 - `FrameCodec.EncodeCommand(byte roverId, short throttle, short steering, bool emergencyStop, bool armed)`
 - `Crc8.Compute(byte[] buffer, int offset, int count)`
 
-The assembly we were shipped is the 32-bit build. The manual says a 64-bit build
-is available on request — contact RoverLink support and quote the site licence
-number on the back of the base station.
+The signatures are unchanged from the vendor's, so calling code did not move.
+This page is now the specification rather than a summary of one — if the wire
+format is ever revised, change it here and in the codec together.
 
 ---
 

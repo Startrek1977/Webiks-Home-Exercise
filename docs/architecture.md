@@ -34,12 +34,13 @@ presentation only, so that the logic can be exercised without a window open.
 
 | Component | Version | Notes |
 |---|---|---|
-| `RoverLink.Telemetry` | 1.4.2 | Vendor SDK for the RL-100 link. Binary only, we never had source. 32-bit build. |
 | `Newtonsoft.Json` | 6.0.8 | Reads the roster file. Pinned at this version since 2016. |
 | `MSTest.TestFramework` | 2.2.10 | Test project only. |
 
-RoverLink Systems stopped trading and the support address bounces. Whatever we
-need from that SDK, we own now.
+RoverLink Systems stopped trading and the support address bounces, so the
+32-bit-only `RoverLink.Telemetry.dll` has been replaced by a managed
+reimplementation in `RoverRally.Core.Telemetry`. We own the RL-100 codec now;
+`docs/rover-link-protocol.md` is the specification it is written against.
 
 ---
 

@@ -1,5 +1,4 @@
 using System;
-using RoverLink.Telemetry;
 
 namespace RoverRally.Core.Telemetry
 {

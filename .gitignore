@@ -35,6 +35,4 @@ Desktop.ini
 .DS_Store
 
 # Deliberately NOT ignored — these are tracked source inputs, not build output:
-#   code/lib/RoverLink.Telemetry.dll        vendor RL-100 SDK, no source available
-#   code/lib/RoverLink.Telemetry.xml        its API documentation
 #   code/src/RoverRally.App/Data/*.bin      shipped session cache

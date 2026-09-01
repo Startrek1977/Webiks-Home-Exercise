@@ -1,6 +1,5 @@
 using System;
 using System.Net.Sockets;
-using RoverLink.Telemetry;
 using RoverRally.Core.Logging;
 
 namespace RoverRally.Core.Telemetry
