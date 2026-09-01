@@ -7,12 +7,10 @@ code/
 ├── RoverRally.sln                  Station solution (.NET Framework 4.8, x86)
 ├── src/
 │   ├── RoverRally.App/             WPF station: track map, readouts, drive controls
-│   ├── RoverRally.Core/            Models, telemetry link, units, geometry, config, session cache
+│   ├── RoverRally.Core/            Models, RL-100 codec and link, units, geometry, config, session cache
 │   └── RoverRally.Tests/           MSTest project
-├── simulator/
-│   └── RoverRally.Simulator/       Bench simulator (.NET 8, separate from the solution)
-└── lib/
-    └── RoverLink.Telemetry.dll     RL-100 radio SDK, vendor supplied
+└── simulator/
+    └── RoverRally.Simulator/       Bench simulator (.NET 8, separate from the solution)
 ```
 
 ## Building
@@ -59,7 +57,15 @@ together if you move them.
 | Completed runs | `src/RoverRally.App/Data/session-cache.bin` |
 | Operator preferences | Registry, `HKCU\Software\RoverLink\Station` |
 
+## Telemetry
+
+The RL-100 wire codec lives in `src/RoverRally.Core/Telemetry`. It used to be a
+vendor binary, `lib/RoverLink.Telemetry.dll`, which was a 32-bit-only build from
+a company that has since stopped trading. It has been reimplemented in managed
+code against `docs/rover-link-protocol.md` and the simulator's `FrameWriter`,
+with the public signatures unchanged, and the binary removed.
+
 ## Documentation
 
-See `../docs/` — the RL-100 protocol notes, the operations guide, and the
+See `docs/` — the RL-100 protocol notes, the operations guide, and the
 architecture notes. They have not all kept up with the code.
