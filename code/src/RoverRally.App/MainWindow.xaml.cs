@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
-using RoverLink.Telemetry;
 using RoverRally.App.ViewModels;
 using RoverRally.Core.Configuration;
 using RoverRally.Core.Geo;

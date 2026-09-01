@@ -44,7 +44,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BatteryGaugeTests.cs" />
+    <Compile Include="Crc8Tests.cs" />
+    <Compile Include="FrameCodecTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SimulatorFrameWriter.cs" />
     <Compile Include="SpeedConverterTests.cs" />
     <Compile Include="TrackProjectionTests.cs" />
   </ItemGroup>
