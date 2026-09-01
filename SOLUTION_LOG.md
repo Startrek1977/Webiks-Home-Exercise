@@ -183,7 +183,7 @@ This landed on net48 and needed no retargeting, which is why it went first.
 *So far this covers the telemetry codec only; this section grows as other issues
 land.*
 
-25 new tests, in `Crc8Tests` and `FrameCodecTests`. I tested the codec heavily
+27 new tests, in `Crc8Tests` and `FrameCodecTests`. I tested the codec heavily
 because it is the one component where being subtly wrong is invisible - a frame
 that decodes to plausible-but-wrong numbers looks exactly like a working station
 until somebody trusts a reading. So the tests are exhaustive where exhaustive is
@@ -198,6 +198,26 @@ The one piece of scaffolding is `SimulatorFrameWriter.cs`, a deliberate duplicat
 of the simulator's `FrameWriter`. The duplication is the point - it shares no
 code with the implementation under test - but it is annotated so it stays in step
 if the simulator ever changes.
+
+It is worth recording what all that coverage still missed. An automated review on
+the pull request found that the bounds check in `Crc8.Compute`,
+`offset + count > buffer.Length`, overflows: C# arithmetic is unchecked by
+default, so an `offset` of `int.MaxValue` wraps the sum negative, sails past the
+guard, and reaches the indexer - the method threw `IndexOutOfRangeException`
+where it documents `ArgumentOutOfRangeException`. My argument-validation tests
+used *plausible* bad inputs (negative values, a range two past the end) and never
+hostile ones, so they all passed. I reproduced it as a failing test first, then
+rewrote the check as a subtraction that cannot overflow for non-negative inputs.
+
+The lesson I am taking from that: exhaustive over the domain is not the same as
+exhaustive over the edges. I had tested all 256 byte values and every buffer
+length up to 64, which reads as thorough, and still had a guard clause that could
+be walked straight through.
+
+The same review pointed out that `TelemetryFrame` documented itself as immutable
+while using `private set`, which still permits mutation from inside the class.
+Get-only auto-properties compile to readonly backing fields, so the compiler now
+enforces what the comment claims rather than merely asserting it.
 
 The three pre-existing tests are untouched by this issue. `BatteryGaugeTests` and
 both `SpeedConverterTests` pass; `TrackProjectionTests.PlacesTheStartLine` was
@@ -225,6 +245,7 @@ have mixed unrelated work into a codec change.
 
 | Tool | How I used it |
 |---|---|
+| GitHub Copilot code review | Automatic review on the pull request. Earned its place: it caught a genuine integer-overflow hole in the CRC bounds check that my own tests had walked past, and a documentation/implementation mismatch on `TelemetryFrame`. Its file-by-file summaries were noise, but the two substantive findings were both real and both worth fixing. I reproduced each as a failing test before accepting it rather than taking the diagnosis on trust |
 | Claude Code (Opus) | Planning and implementation, driven issue by issue. Most useful on the mechanical-but-fiddly work: enumerating the vendor assembly's real member list out of its metadata, and generating exhaustive test cases. I had to direct the verification explicitly - left to itself it would have stopped at a green test run rather than mutation-testing the suite and driving the real simulator over UDP. It also produced the stale-DLL false alarm described under Challenges, by rebuilding while a deliberate mutation was still applied |
 
 ---
