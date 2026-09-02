@@ -85,6 +85,16 @@ since the station started.
 If the link drops while a vehicle is moving, the vehicle stops on its own after
 two seconds without a command frame.
 
+**Selecting a vehicle never lifts a stop it is already holding.** If you select
+a vehicle from the Fleet tab and it is already reporting a stop - because it was
+stopped earlier and left alone, because the station was just restarted, or
+because it has not reported at all in the last two seconds - the station holds
+that stop exactly as if you had pressed the button yourself. `STATION: STOP
+LATCHED` appears without you having touched anything, and the ARM button is what
+clears it, same as any other stop: centre the throttle and press ARM. A vehicle
+that has never reported is treated the same way, since the station cannot tell
+"clear" apart from "not answering."
+
 ---
 
 ## Fleet tab
