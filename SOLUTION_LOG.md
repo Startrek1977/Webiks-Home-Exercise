@@ -182,6 +182,42 @@ This landed on net48 and needed no retargeting, which is why it went first.
    line still read `VEHICLE: ARMED` for a vehicle that had never been armed.
    That is the same mis-attribution as the geofence defect below, in a
    different control.
+3. **Selecting a rover in the Fleet grid silently cleared its emergency stop
+   (#37).** Not something Dana flagged - I found it running the station against
+   the simulator after #20 landed. `DriveController`'s latch is global to the
+   station, not per rover. Stop Falafel, select Sandstorm, select Falafel again
+   with nobody touching ARM or the throttle: the very next drive-timer tick sent
+   Falafel `emergencyStop: false`, because that flag is all the latch the
+   vehicle itself keeps, and the newly-selected vehicle was not what the
+   station's own latch had in mind. Same failure as #20 - the vehicle carries on
+   after a stop - reached by a different door, and #20 had only bolted the one
+   it was told about.
+
+   The fix, agreed with the exercise owner as an interim guard rather than the
+   full per-rover redesign that `#35` still owes: the station will not transmit
+   `emergencyStop: false` to a vehicle whose own telemetry reports the stop
+   latched, or that has not reported at all within the vehicle's own
+   two-second command-loss window - unless the operator explicitly re-arms
+   *that* vehicle, throttle centred, same gate as any other re-arm. `#35`
+   is not superseded; this closes the hole without answering the question #35
+   still owes about commanding vehicles the station is not displaying.
+
+   Running the fix against the real simulator caught something no unit test
+   did: a throwaway harness that re-armed Falafel and then drove the very next
+   tick immediately - no sleep, deliberately - found the re-arm relatching
+   itself. The tick's freshest telemetry was still the pre-rearm frame, 5Hz
+   telemetry not having caught up with a re-arm that was itself milliseconds
+   old, and the guard trusted it. `DriveController` now tracks when it last
+   decided what to transmit and only lets a reported stop justify a *new*
+   latch if the frame reporting it is at least as new as that - a silent
+   vehicle is exempt from the check entirely, since silence has no fresher
+   frame to wait for. Two tests pin this down directly:
+   `DoesNotRelatchOnAStaleFrameFromBeforeAnExplicitReArm` and
+   `StillAdoptsAStopConfirmedByAFrameNewerThanTheReArm`. Worth recording
+   because it is the second time in this exercise that a defect only showed up
+   against the real simulator - the codec's transcription-mirror problem was
+   the first - and both times a passing unit-test suite was the wrong signal to
+   stop on.
 
 ---
 

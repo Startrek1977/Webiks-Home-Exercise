@@ -219,8 +219,23 @@ namespace RoverRally.App
             Rover rover = _vm.SelectedRover;
             if (rover == null || _commands == null) return;
 
-            StationCommand command = _drive.NextDriveCommand((short)ThrottleSlider.Value,
+            bool wasLatched = _drive.IsEmergencyStopLatched;
+
+            StationCommand command = _drive.NextDriveCommand(rover.IsEmergencyStopped, rover.LastFrameUtc,
+                                                             DateTime.UtcNow,
+                                                             (short)ThrottleSlider.Value,
                                                              (short)SteeringSlider.Value);
+
+            // The latch just adopted a stop the station didn't know about,
+            // rather than clearing it (#37). Reflect that on screen
+            // immediately rather than waiting for the next frame.
+            if (!wasLatched && _drive.IsEmergencyStopLatched)
+            {
+                ArmButton.Content = "ARM";
+                UpdateDriveStateText();
+                Log.Warn(rover.Name + " reports an emergency stop the station was not holding. " +
+                        "Treating it as latched until re-armed.");
+            }
 
             _commands.Send(rover.Id, command.Throttle, command.Steering,
                            command.EmergencyStop, command.Armed);
@@ -243,8 +258,15 @@ namespace RoverRally.App
                 return;
             }
 
+            // Captures whether a stop was in force before the call, whether
+            // the station already knew about it or is only now finding out
+            // from the vehicle's own telemetry - both count as "cleared" below.
+            bool stopWasHeld = _drive.IsEmergencyStopLatched ||
+                              DriveController.VehicleReportsStopped(rover.IsEmergencyStopped, rover.LastFrameUtc, DateTime.UtcNow);
+
             StationCommand command;
-            if (!_drive.TryToggleArm((short)ThrottleSlider.Value, out command))
+            if (!_drive.TryToggleArm(rover.IsEmergencyStopped, rover.LastFrameUtc, DateTime.UtcNow,
+                                     (short)ThrottleSlider.Value, out command))
             {
                 Log.Warn("Re-arm of " + rover.Name + " refused: the throttle is not centred.");
                 MessageBox.Show("Centre the throttle before re-arming " + rover.Name + ".",
@@ -257,6 +279,12 @@ namespace RoverRally.App
 
             _commands.Send(rover.Id, command.Throttle, command.Steering,
                            command.EmergencyStop, command.Armed);
+
+            if (stopWasHeld && !_drive.IsEmergencyStopLatched)
+            {
+                Log.Info("Cleared the emergency stop on " + rover.Name + " via re-arm.");
+            }
+
             Log.Info((_drive.IsArmed ? "Armed " : "Disarmed ") + rover.Name + ".");
         }
 
