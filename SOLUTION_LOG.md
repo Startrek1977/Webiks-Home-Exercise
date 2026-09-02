@@ -147,7 +147,7 @@ This landed on net48 and needed no retargeting, which is why it went first.
 
 | Bug | Root cause | Fix |
 |---|---|---|
-| Emergency stop | | |
+| Emergency stop | The station never re-asserted the stop. `MainWindow._emergencyStopLatched` was assigned and never read (CS0414), and `DriveTimer_Tick` hard-coded `emergencyStop: false` every 200ms. The vehicle is level-triggered - `RoverSim.Apply` overwrites its held flag from each frame - so the latch survived exactly one tick. Intermittent because `EmergencyStop_Click` transmitted `armed: false` without clearing the local `_armed`, so the next tick sent stale armed plus whatever the throttle slider read | Moved the latch into a `DriveController` in Core, which every tick consults; engaging the stop also disarms locally, and only an explicit re-arm clears it. Also removed the `IsReconnecting` guard that could refuse to send the stop at all |
 | Battery readout | | |
 | Imperial speed | | |
 
@@ -155,7 +155,14 @@ This landed on net48 and needed no retargeting, which is why it went first.
 
 *Bugs Dana didn't mention. For each: what's wrong, where, how you found it, and what you did about it.*
 
-1.
+1. **The emergency stop could refuse to send at all.** `MainWindow.EmergencyStop_Click`
+   returned early when `_telemetry.IsReconnecting`, showing "The link is reconnecting.
+   Try again in a moment." I found it while reading the handler for the latch fix. That
+   flag belongs to the *inbound* telemetry listener; commands go out through a separate
+   `UdpClient` owned by `CommandSender` and are unaffected by it. So an unrelated inbound
+   socket rebinding made the big red button do nothing, in the same handler as the bug I
+   was already there to fix. The stop is now always sent, and a degraded link is reported
+   alongside it rather than instead of it.
 2.
 
 ---
@@ -182,6 +189,36 @@ This landed on net48 and needed no retargeting, which is why it went first.
 
 *So far this covers the telemetry codec only; this section grows as other issues
 land.*
+
+The emergency stop needed a structural change before it could be tested at all.
+The latch lived in `MainWindow.xaml.cs`, wired to a `DispatcherTimer` and reading
+sliders directly, and `RoverRally.Tests` has no reference to `RoverRally.App`, no
+WPF assemblies and no STA plumbing. So I moved the one decision that matters -
+given latch state, armed state, throttle and steering, what should the next frame
+contain - into `DriveController` in Core, and left the code-behind calling it. The
+handlers now hold no logic worth testing, which is the point.
+
+Ten tests cover it, and I checked they were worth having by putting the original
+two faults back and rebuilding: the missing re-assertion and the stale armed flag.
+Seven of the ten went red, including the one that reproduces Dana's report
+directly - stop engaged, throttle left up, tick. The three that stayed green are
+the ones covering normal driving, which the bug never touched.
+
+That run also caught a weak test of my own. `NeverReportsItselfArmedWhileTheStopIsLatched`
+originally checked the invariant only at the end of a sequence, and passed against
+the broken code, because a controller that forgets to disarm on the stop and then
+disarms on the next button press reaches the same final state - by a route that
+would have driven the vehicle away in between. It now asserts after every step.
+
+Unit tests could not settle the last question, though, because the failure is a
+property of a conversation over time rather than of a function. So there is also
+a throwaway harness that runs the real `DriveController` and `CommandSender`
+against the real simulator over real UDP at the station's own 200ms cadence: arm,
+drive, stop with the throttle still at full, then sixty consecutive ticks. The
+vehicle stayed at zero for all sixty and reported the stop on every frame. Twelve
+seconds matters here - the old code released after one tick, and the simulator has
+its own two-second command-loss failsafe that would have masked a broken latch if
+the station had simply gone quiet.
 
 27 new tests, in `Crc8Tests` and `FrameCodecTests`. I tested the codec heavily
 because it is the one component where being subtly wrong is invisible - a frame
@@ -236,6 +273,8 @@ have mixed unrelated work into a codec change.
 | `TelemetryFrame` shape | Vendor parity (mutable class); `readonly struct`; immutable class | Immutable class | Nothing mutates a frame after decode. net48 is C# 7.3, so `init` accessors were not available |
 | The vendor binary | Leave it on disk unreferenced; delete it | Delete the DLL and its XML | Makes "no 32-bit dependency remains" verifiable in this change rather than deferred to the retarget |
 | Codec test oracle | Mirror of the simulator's writer; golden bytes; both | Both | A mirror alone shares any transcription error with the implementation, so by construction it cannot detect one |
+| Where the emergency stop latch lives | Make the simulator latch; hold it in `MainWindow`; extract a controller into Core | Extract `DriveController` into Core | The simulator stands in for firmware that cannot be changed in the field, and the vehicle is documented as level-triggered, so the latch belongs to the transmitter. Leaving it in code-behind would have left the one safety-critical control in the solution untestable |
+| Re-arming with the throttle raised | Allow it; snap the slider to zero; refuse | Refuse, and say why | The operator pressing the button is the marshal standing on the track. Clearing the latch into a raised slider drives the vehicle at them, which is the hazard the ops guide already warns about |
 
 ---
 
@@ -277,6 +316,28 @@ worked example was correct. That handed me a check on the wire format that was
 independent of both the simulator and my own implementation. The documents were
 wrong about the API surface and about the vendor; they were right about the
 protocol.
+
+The emergency stop is the sharpest counter-example, and it cuts the other way
+entirely. `docs/operations-guide.md` says the stop latches and the vehicle stays
+stopped until re-armed. The code did not do that. Read on its own, the code was
+perfectly self-consistent - the station sent one stop frame, the drive timer
+carried on sending `emergencyStop: false`, and the vehicle obeyed the most recent
+frame exactly as `docs/rover-link-protocol.md` says it would. Nothing in it looks
+broken. You only know it is wrong because a document tells you what the behaviour
+is supposed to be.
+
+So "trust the code over the documents" is the right rule for working out what the
+system *does*, and useless for working out what it is *supposed* to do. On the
+telemetry SDK the documents were an incomplete description of a working thing. On
+the emergency stop the document was the only surviving statement of intent, and
+the code was the thing that was wrong. Applied literally, the rule would have had
+me read the drive timer, see it faithfully implementing a level-triggered
+protocol, and move on.
+
+The compiler was also telling me, for what it is worth: CS0414,
+`_emergencyStopLatched` assigned but never used. A warning nobody had turned into
+an error, sitting on the one safety control in the application, for long enough
+that it had become part of the scenery.
 
 ---
 

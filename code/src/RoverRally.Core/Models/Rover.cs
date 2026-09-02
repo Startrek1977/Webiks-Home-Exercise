@@ -19,6 +19,8 @@ namespace RoverRally.Core.Models
         private int _signalPercent;
         private double _motorTempC;
         private double _tiltDegrees;
+        private bool _isArmed;
+        private bool _isEmergencyStopped;
         private DateTime _lastFrameUtc;
         private uint _lastSequence;
 
@@ -78,6 +80,29 @@ namespace RoverRally.Core.Models
         {
             get { return _tiltDegrees; }
             set { _tiltDegrees = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// Armed state as the vehicle itself reports it, from bit 0 of the
+        /// telemetry status byte. This is what the rover believes, not what
+        /// the station last asked for; the two disagreeing is worth seeing.
+        /// </summary>
+        public bool IsArmed
+        {
+            get { return _isArmed; }
+            set { _isArmed = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// Emergency stop as the vehicle itself reports it, from bit 1 of the
+        /// telemetry status byte. Never write the station's latch back from
+        /// this - the vehicle is not the authority on whether an operator
+        /// re-armed.
+        /// </summary>
+        public bool IsEmergencyStopped
+        {
+            get { return _isEmergencyStopped; }
+            set { _isEmergencyStopped = value; OnPropertyChanged(); }
         }
 
         public DateTime LastFrameUtc

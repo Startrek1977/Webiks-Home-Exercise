@@ -85,6 +85,9 @@
                             <Button x:Name="EmergencyStopButton" Content="EMERGENCY STOP"
                                     Style="{StaticResource ActionButton}" Click="EmergencyStop_Click"
                                     Background="{StaticResource DangerBrush}" Foreground="White" FontWeight="Bold" Height="46" />
+                            <TextBlock x:Name="DriveStateText" Margin="0,6,0,0" FontSize="10"
+                                       TextWrapping="Wrap" Foreground="#FF6E7787"
+                                       Text="STATION: DISARMED  -  VEHICLE: NO DATA" />
                         </StackPanel>
                     </Border>
                 </Grid>

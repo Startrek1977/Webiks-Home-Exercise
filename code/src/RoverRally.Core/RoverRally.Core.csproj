@@ -46,6 +46,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Configuration\StationSettings.cs" />
+    <Compile Include="Control\DriveController.cs" />
+    <Compile Include="Control\StationCommand.cs" />
     <Compile Include="Geo\GeofenceMonitor.cs" />
     <Compile Include="Geo\TrackProjection.cs" />
     <Compile Include="Logging\Log.cs" />

@@ -7,7 +7,7 @@ code/
 ├── RoverRally.sln                  Station solution (.NET Framework 4.8, x86)
 ├── src/
 │   ├── RoverRally.App/             WPF station: track map, readouts, drive controls
-│   ├── RoverRally.Core/            Models, RL-100 codec and link, units, geometry, config, session cache
+│   ├── RoverRally.Core/            Models, RL-100 codec and link, drive-control state, units, geometry, config, session cache
 │   └── RoverRally.Tests/           MSTest project
 └── simulator/
     └── RoverRally.Simulator/       Bench simulator (.NET 8, separate from the solution)
