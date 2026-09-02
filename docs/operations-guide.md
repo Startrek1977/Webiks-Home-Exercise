@@ -2,7 +2,7 @@
 
 **Audience:** track marshals and test engineers
 **Owner:** Kadima Proving Ground, operations
-**Last updated:** August 2021
+**Last updated:** September 2026
 
 ---
 
@@ -48,7 +48,39 @@ The big red button cuts the vehicle immediately.
 **The stop latches.** Once it is pressed the vehicle stays stopped and ignores
 throttle input until it is explicitly re-armed. This is deliberate: a marshal who
 hits the button should be able to walk onto the track without watching the
-screen.
+screen. It does not matter where the sliders are left, and it does not matter how
+long you take.
+
+Pressing the stop also disarms the vehicle, so the ARM button is what releases
+it. Nothing else does.
+
+**If the station cannot send, it tells you.** When the command link is not
+running the button reports that the stop was **not** sent, and asks you to stop
+the vehicle by hand. A stop that failed and a stop that worked do not look alike
+on screen — read the dialog rather than assuming the vehicle is slowing.
+
+**Re-arming needs the throttle centred.** If the throttle slider is still up when
+you press ARM, the station refuses and says so, rather than releasing the vehicle
+into a raised slider while you are still standing in front of it. Centre the
+slider and press ARM again.
+
+The line under the button reads the station's state and the vehicle's own
+reported state side by side:
+
+```
+STATION: STOP LATCHED  -  VEHICLE: STOPPED
+```
+
+The left half is what the station is asserting; the right half is what the
+vehicle is reporting back in its telemetry. They should agree within a frame or
+two. If the left says the stop is latched and the right does not say `STOPPED`,
+the vehicle is not hearing the station — treat that as a vehicle you cannot rely
+on, and clear the track by hand.
+
+The right half always describes the vehicle currently selected and follows the
+selection straight away, so it never shows you one vehicle's state under
+another's name. It reads `VEHICLE: NO DATA` for a vehicle that has not reported
+since the station started.
 
 If the link drops while a vehicle is moving, the vehicle stops on its own after
 two seconds without a command frame.
