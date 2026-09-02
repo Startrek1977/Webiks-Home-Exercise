@@ -48,6 +48,8 @@ namespace RoverRally.App
             DataContext = _vm;
             StationNameText.Text = App.StationName;
 
+            _vm.PropertyChanged += ViewModel_PropertyChanged;
+
             Loaded += MainWindow_Loaded;
         }
 
@@ -139,6 +141,18 @@ namespace RoverRally.App
             _driveTimer.Interval = TimeSpan.FromMilliseconds(interval);
             _driveTimer.Tick += DriveTimer_Tick;
             _driveTimer.Start();
+        }
+
+        /// <summary>
+        /// The drive state line names a particular vehicle, so it has to follow
+        /// the selection rather than wait for that vehicle's next frame. A rover
+        /// that is not transmitting would otherwise leave the previous rover's
+        /// state on screen indefinitely, under the new rover's name - which is
+        /// precisely the confusion this indicator exists to prevent.
+        /// </summary>
+        private void ViewModel_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == "SelectedRover") UpdateDriveStateText();
         }
 
         private void Telemetry_ConnectionStateChanged(object sender, EventArgs e)
