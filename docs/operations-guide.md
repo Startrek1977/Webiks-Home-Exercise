@@ -54,6 +54,11 @@ long you take.
 Pressing the stop also disarms the vehicle, so the ARM button is what releases
 it. Nothing else does.
 
+**If the station cannot send, it tells you.** When the command link is not
+running the button reports that the stop was **not** sent, and asks you to stop
+the vehicle by hand. A stop that failed and a stop that worked do not look alike
+on screen — read the dialog rather than assuming the vehicle is slowing.
+
 **Re-arming needs the throttle centred.** If the throttle slider is still up when
 you press ARM, the station refuses and says so, rather than releasing the vehicle
 into a raised slider while you are still standing in front of it. Centre the
@@ -71,6 +76,11 @@ vehicle is reporting back in its telemetry. They should agree within a frame or
 two. If the left says the stop is latched and the right does not say `STOPPED`,
 the vehicle is not hearing the station — treat that as a vehicle you cannot rely
 on, and clear the track by hand.
+
+The right half always describes the vehicle currently selected and follows the
+selection straight away, so it never shows you one vehicle's state under
+another's name. It reads `VEHICLE: NO DATA` for a vehicle that has not reported
+since the station started.
 
 If the link drops while a vehicle is moving, the vehicle stops on its own after
 two seconds without a command frame.

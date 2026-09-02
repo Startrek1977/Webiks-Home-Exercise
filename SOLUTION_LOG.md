@@ -163,7 +163,25 @@ This landed on net48 and needed no retargeting, which is why it went first.
    socket rebinding made the big red button do nothing, in the same handler as the bug I
    was already there to fix. The stop is now always sent, and a degraded link is reported
    alongside it rather than instead of it.
-2.
+2. **The emergency stop could throw instead of stopping anything.** Both drive
+   handlers called `_commands.Send(...)` and read `_telemetry.IsReconnecting`
+   without checking either for null, while `DriveTimer_Tick` next to them
+   already guarded `_commands`. If the link never started, ARM threw a
+   `NullReferenceException` and the stop threw after sending. An automated
+   review on the pull request pointed at the missing guard; I took the finding
+   and widened it, because the interesting half is not the exception. A safety
+   control that appears to work and quietly does nothing is worse than one that
+   is plainly broken, so the stop now reports that it could not send and tells
+   the operator to stop the vehicle by hand.
+
+   The same review round found the drive state indicator refreshing only when a
+   frame arrived for the selected rover, so changing the fleet selection left
+   the previous rover's state on screen under the new rover's name -
+   indefinitely if the new one was not transmitting. I reproduced it before
+   fixing it: armed Falafel, stopped the simulator, selected Sandstorm, and the
+   line still read `VEHICLE: ARMED` for a vehicle that had never been armed.
+   That is the same mis-attribution as the geofence defect below, in a
+   different control.
 
 ---
 
@@ -284,7 +302,8 @@ have mixed unrelated work into a codec change.
 
 | Tool | How I used it |
 |---|---|
-| GitHub Copilot code review | Automatic review on the pull request. Earned its place: it caught a genuine integer-overflow hole in the CRC bounds check that my own tests had walked past, and a documentation/implementation mismatch on `TelemetryFrame`. Its file-by-file summaries were noise, but the two substantive findings were both real and both worth fixing. I reproduced each as a failing test before accepting it rather than taking the diagnosis on trust |
+| GitHub Copilot code review | Automatic review on the pull request. Earned its place twice. On the codec it caught a genuine integer-overflow hole in the CRC bounds check that my own tests had walked past, and a documentation/implementation mismatch on `TelemetryFrame`. On the emergency stop it caught an unguarded null dereference in both drive handlers, and an indicator that refreshed on telemetry but not on selection. Its file-by-file summaries are noise; the substantive findings have all been real. I reproduce each one before accepting it rather than taking the diagnosis on trust, which is also how I found that its "stale indicator" report was worse than described - not a brief lag, but permanent when the newly selected vehicle is silent |
+| Codex code review | Also automatic on the pull request. Raised the one finding I decided *not* to act on: with a single station-wide latch, stopping rover A and then selecting rover B stops B instead, and re-arming B clears A's latch. It is correct - I reproduced both halves against the simulator - but the fix is per-rover state, which the repository owner had explicitly deferred out of this issue, and binding the latch to its rover silently answers a design question (whether the station commands vehicles it is not showing) that belongs to the owner rather than to a reviewer or to me. Filed rather than fixed. Worth recording that the useful output of a review is not always a diff |
 | Claude Code (Opus) | Planning and implementation, driven issue by issue. Most useful on the mechanical-but-fiddly work: enumerating the vendor assembly's real member list out of its metadata, and generating exhaustive test cases. I had to direct the verification explicitly - left to itself it would have stopped at a green test run rather than mutation-testing the suite and driving the real simulator over UDP. It also produced the stale-DLL false alarm described under Challenges, by rebuilding while a deliberate mutation was still applied |
 
 ---
