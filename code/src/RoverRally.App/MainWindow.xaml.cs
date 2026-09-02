@@ -28,6 +28,16 @@ namespace RoverRally.App
         private GeofenceMonitor _geofence;
 
         private readonly DriveController _drive = new DriveController();
+
+        /// <summary>
+        /// UpdateDriveStateText runs on every telemetry frame for the selected
+        /// rover, so a brush built per frame is avoidable allocation on the UI
+        /// thread. Frozen so one instance can be shared.
+        /// </summary>
+        private static readonly Brush QuietStateBrush = CreateQuietStateBrush();
+
+        /// <summary>Resolved once; FindResource walks the tree on every call.</summary>
+        private Brush _latchedStateBrush;
         private int _frameCount;
         private readonly HashSet<byte> _fencedAlerted = new HashSet<byte>();
 
@@ -211,6 +221,14 @@ namespace RoverRally.App
                 return;
             }
 
+            if (_commands == null)
+            {
+                Log.Error("Arm request for " + rover.Name + " ignored: the command link is not running.");
+                MessageBox.Show("The command link is not running, so nothing was sent.",
+                                "RoverRally", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
             StationCommand command;
             if (!_drive.TryToggleArm((short)ThrottleSlider.Value, out command))
             {
@@ -233,6 +251,18 @@ namespace RoverRally.App
             Rover rover = _vm.SelectedRover;
             if (rover == null) return;
 
+            // A stop that quietly does nothing is worse than no button at all,
+            // so say so rather than throwing or returning in silence.
+            if (_commands == null)
+            {
+                Log.Error("EMERGENCY STOP for " + rover.Name + " could not be sent: the command link is not running.");
+                MessageBox.Show("The command link is not running, so the emergency stop was NOT sent." +
+                                Environment.NewLine + Environment.NewLine +
+                                "Stop " + rover.Name + " by hand.",
+                                "RoverRally", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
             // Deliberately not gated on _telemetry.IsReconnecting. That flag
             // describes the inbound telemetry socket; commands leave through a
             // separate socket owned by CommandSender and are unaffected by it.
@@ -252,7 +282,7 @@ namespace RoverRally.App
                              Environment.NewLine + Environment.NewLine +
                              "The stop is held until you press ARM.";
 
-            if (_telemetry.IsReconnecting)
+            if (_telemetry != null && _telemetry.IsReconnecting)
             {
                 message += Environment.NewLine + Environment.NewLine +
                            "Telemetry is reconnecting, so the readouts may lag. " +
@@ -281,10 +311,19 @@ namespace RoverRally.App
             else if (rover.IsEmergencyStopped) vehicle = "VEHICLE: STOPPED";
             else vehicle = rover.IsArmed ? "VEHICLE: ARMED" : "VEHICLE: DISARMED";
 
+            if (_latchedStateBrush == null) _latchedStateBrush = (Brush)FindResource("DangerBrush");
+
             DriveStateText.Text = station + "  -  " + vehicle;
             DriveStateText.Foreground = _drive.IsEmergencyStopLatched || (rover != null && rover.IsEmergencyStopped)
-                ? (Brush)FindResource("DangerBrush")
-                : new SolidColorBrush(Color.FromRgb(0x6E, 0x77, 0x87));
+                ? _latchedStateBrush
+                : QuietStateBrush;
+        }
+
+        private static Brush CreateQuietStateBrush()
+        {
+            SolidColorBrush brush = new SolidColorBrush(Color.FromRgb(0x6E, 0x77, 0x87));
+            brush.Freeze();
+            return brush;
         }
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
