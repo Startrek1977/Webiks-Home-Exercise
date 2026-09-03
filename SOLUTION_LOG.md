@@ -510,6 +510,21 @@ and the stale "Remote monitoring" / "Post-run analyzers" sections of
 `docs/operations-guide.md:121-129`. Full evidence trace, with the same
 file:line citations, is on #1.
 
+**#7 closes the `AnalyzerHost` half of this.** I re-checked the spike's
+evidence myself before deleting anything rather than taking my own prior
+write-up on trust: a repo-wide grep for `AnalyzerHost` still turned up nothing
+but the type's own file and this log entry, and `RoverRally.Core.csproj` has
+no explicit `<Compile Include>` for it - the SDK-style implicit glob was
+already picking it up, so deleting the file needed no project-file edit.
+`Core/Monitoring/AnalyzerHost.cs` is gone; `RunSnapshot.cs` and
+`StationMonitorService.cs` stay untouched, since `RunSnapshot` is #9's to
+remove once both #7 and #8 have landed. The "Post-run analyzers..." line came
+out of `docs/operations-guide.md`'s "Remote monitoring" section; the rest of
+that section, describing the office-overview client, is #8's to close out.
+Rebuilt the solution and reran the test suite after the deletion - still 76
+passed, 1 skipped, 0 failed - to confirm nothing depended on the type despite
+the spike's own trace.
+
 ---
 
 ## Logging
