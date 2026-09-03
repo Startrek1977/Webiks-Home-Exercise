@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 using RoverRally.Core.Logging;
 
 namespace RoverRally.Core.Session
@@ -10,10 +9,24 @@ namespace RoverRally.Core.Session
     /// Fixed stride binary store for completed runs. It is written once at the
     /// end of every run and read back when the fleet grid is populated, so a
     /// flat file beats carrying a database engine around the site.
+    ///
+    /// The stride is a fixed set of byte offsets, not a marshalled struct size:
+    /// a value that depends on <c>Marshal.SizeOf</c> changes with process
+    /// architecture (4 vs 8 byte pointers, different padding), and the on-disk
+    /// format must not. Offset 4 is reserved - it used to hold the vendor SDK's
+    /// session handle - and is written as zero and ignored on read, so the
+    /// shipped session-cache.bin keeps reading unchanged.
     /// </summary>
     public static class SessionCacheFile
     {
-        private static readonly int RecordSize = Marshal.SizeOf(typeof(SessionCacheRecord));
+        public const int RecordSize = 32;
+
+        private const int RoverIdOffset = 0;
+        private const int ReservedOffset = 4;
+        private const int StartedUtcTicksOffset = 8;
+        private const int EndedUtcTicksOffset = 16;
+        private const int DistanceCmOffset = 24;
+        private const int PeakSpeedCmSOffset = 28;
 
         public static IList<SessionCacheRecord> Read(string path)
         {
@@ -27,19 +40,27 @@ namespace RoverRally.Core.Session
 
             byte[] raw = File.ReadAllBytes(path);
             int count = raw.Length / RecordSize;
+            int trailingBytes = raw.Length % RecordSize;
 
-            IntPtr scratch = Marshal.AllocHGlobal(RecordSize);
-            try
+            if (trailingBytes != 0)
             {
-                for (int i = 0; i < count; i++)
-                {
-                    Marshal.Copy(raw, i * RecordSize, scratch, RecordSize);
-                    records.Add((SessionCacheRecord)Marshal.PtrToStructure(scratch, typeof(SessionCacheRecord)));
-                }
+                Log.Warn(string.Format(
+                    "Session cache at {0} is {1} byte(s) short of a whole number of {2}-byte records; "
+                    + "the trailing {1} byte(s) look truncated or corrupted and are being discarded.",
+                    path, trailingBytes, RecordSize));
             }
-            finally
+
+            for (int i = 0; i < count; i++)
             {
-                Marshal.FreeHGlobal(scratch);
+                int offset = i * RecordSize;
+
+                SessionCacheRecord record = new SessionCacheRecord();
+                record.RoverId = BitConverter.ToInt32(raw, offset + RoverIdOffset);
+                record.StartedUtcTicks = BitConverter.ToInt64(raw, offset + StartedUtcTicksOffset);
+                record.EndedUtcTicks = BitConverter.ToInt64(raw, offset + EndedUtcTicksOffset);
+                record.DistanceCm = BitConverter.ToInt32(raw, offset + DistanceCmOffset);
+                record.PeakSpeedCmS = BitConverter.ToInt32(raw, offset + PeakSpeedCmSOffset);
+                records.Add(record);
             }
 
             Log.Info(string.Format("Loaded {0} run(s) from the session cache.", records.Count));
@@ -50,16 +71,12 @@ namespace RoverRally.Core.Session
         {
             byte[] buffer = new byte[RecordSize];
 
-            IntPtr scratch = Marshal.AllocHGlobal(RecordSize);
-            try
-            {
-                Marshal.StructureToPtr(record, scratch, false);
-                Marshal.Copy(scratch, buffer, 0, RecordSize);
-            }
-            finally
-            {
-                Marshal.FreeHGlobal(scratch);
-            }
+            Buffer.BlockCopy(BitConverter.GetBytes(record.RoverId), 0, buffer, RoverIdOffset, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(record.StartedUtcTicks), 0, buffer, StartedUtcTicksOffset, 8);
+            Buffer.BlockCopy(BitConverter.GetBytes(record.EndedUtcTicks), 0, buffer, EndedUtcTicksOffset, 8);
+            Buffer.BlockCopy(BitConverter.GetBytes(record.DistanceCm), 0, buffer, DistanceCmOffset, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(record.PeakSpeedCmS), 0, buffer, PeakSpeedCmSOffset, 4);
+            // ReservedOffset is left as zero.
 
             string directory = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))

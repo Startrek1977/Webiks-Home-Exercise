@@ -1,23 +1,17 @@
 using System;
-using System.Runtime.InteropServices;
 
 namespace RoverRally.Core.Session
 {
     /// <summary>
     /// One completed run, as stored in the station's binary session cache.
-    /// The layout mirrors the RL_SESSION block in the RL-100 integration
-    /// manual, including the reserved pointer slot the SDK keeps at the end.
+    /// The on-disk layout is fixed-width and architecture-independent - see
+    /// <see cref="SessionCacheFile.RecordSize"/> - and keeps a 4-byte
+    /// reserved gap where the vendor SDK's session handle used to sit, so the
+    /// existing session-cache.bin does not need to change shape.
     /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
     public struct SessionCacheRecord
     {
         public int RoverId;
-
-        /// <summary>
-        /// Opaque session handle returned by the SDK. It is kept in the record
-        /// so the block round-trips unchanged through RL_SESSION.
-        /// </summary>
-        public IntPtr SessionHandle;
 
         public long StartedUtcTicks;
         public long EndedUtcTicks;
