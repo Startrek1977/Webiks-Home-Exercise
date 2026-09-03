@@ -13,5 +13,47 @@ namespace RoverRally.Tests
 
             Assert.IsTrue(percent >= 0);
         }
+
+        [TestMethod]
+        public void ReportsZeroPercentForAFlatPack()
+        {
+            Assert.AreEqual(0, BatteryGauge.ToPercent(BatteryGauge.EmptyMilliVolts));
+        }
+
+        [TestMethod]
+        public void ReportsOneHundredPercentForAFullPack()
+        {
+            Assert.AreEqual(100, BatteryGauge.ToPercent(BatteryGauge.FullMilliVolts));
+        }
+
+        [TestMethod]
+        public void ClampsToZeroBelowEmpty()
+        {
+            Assert.AreEqual(0, BatteryGauge.ToPercent(BatteryGauge.EmptyMilliVolts - 100));
+        }
+
+        [TestMethod]
+        public void ClampsToOneHundredAboveFull()
+        {
+            Assert.AreEqual(100, BatteryGauge.ToPercent(BatteryGauge.FullMilliVolts + 400));
+        }
+
+        [TestMethod]
+        public void TreatsAFailedSensorReadingAsEmptyNotFull()
+        {
+            Assert.AreEqual(0, BatteryGauge.ToPercent(0));
+        }
+
+        [TestMethod]
+        public void IsCriticalFiresForANearlyFlatPack()
+        {
+            Assert.IsTrue(BatteryGauge.IsCritical(BatteryGauge.EmptyMilliVolts + 200));
+        }
+
+        [TestMethod]
+        public void IsCriticalFiresForAFailedSensorReading()
+        {
+            Assert.IsTrue(BatteryGauge.IsCritical(0));
+        }
     }
 }

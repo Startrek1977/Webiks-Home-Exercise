@@ -148,7 +148,7 @@ This landed on net48 and needed no retargeting, which is why it went first.
 | Bug | Root cause | Fix |
 |---|---|---|
 | Emergency stop | The station never re-asserted the stop. `MainWindow._emergencyStopLatched` was assigned and never read (CS0414), and `DriveTimer_Tick` hard-coded `emergencyStop: false` every 200ms. The vehicle is level-triggered - `RoverSim.Apply` overwrites its held flag from each frame - so the latch survived exactly one tick. Intermittent because `EmergencyStop_Click` transmitted `armed: false` without clearing the local `_armed`, so the next tick sent stale armed plus whatever the throttle slider read | Moved the latch into a `DriveController` in Core, which every tick consults; engaging the stop also disarms locally, and only an explicit re-arm clears it. Also removed the `IsReconnecting` guard that could refuse to send the stop at all |
-| Battery readout | | |
+| Battery readout | `BatteryGauge.ToPercent` subtracted `EmptyMilliVolts` and cast the difference to `ushort` before scaling. Any pack at or below 9.0V - including a failed sensor reporting 0 mV, which is the simulator's own failure sentinel - produced a negative difference that wrapped to a huge positive `ushort`, which the existing high-side clamp then capped at 100%. `IsCritical` just calls `ToPercent`, so the low-battery check inherited the same blind spot and could never fire for a flat pack | Kept the subtraction as signed `int` and clamped the result to `0..100` on both ends instead of only the top. A pack below empty, or a 0 mV failed-sensor reading, now reads 0% instead of wrapping past it - no special-casing the sensor failure separately, since it's just the most extreme case of "below empty" |
 | Imperial speed | | |
 
 ### Anything else you found

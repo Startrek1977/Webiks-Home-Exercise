@@ -10,11 +10,17 @@ namespace RoverRally.Core.Units
         public const int EmptyMilliVolts = 9000;
         public const int FullMilliVolts = 12600;
 
+        /// <summary>
+        /// A pack at or below <see cref="EmptyMilliVolts"/> - including a
+        /// failed sensor reporting 0 mV - clamps to 0, not a wrapped-around
+        /// positive number. Never let this report a flat pack as healthy.
+        /// </summary>
         public static int ToPercent(int milliVolts)
         {
-            ushort aboveEmpty = (ushort)(milliVolts - EmptyMilliVolts);
-
+            int aboveEmpty = milliVolts - EmptyMilliVolts;
             int percent = aboveEmpty * 100 / (FullMilliVolts - EmptyMilliVolts);
+
+            if (percent < 0) percent = 0;
             if (percent > 100) percent = 100;
 
             return percent;
