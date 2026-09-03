@@ -625,7 +625,7 @@ the emergency stop latch with tests - but by the time I picked it up, both had
 already shipped: the extraction landed with #20, and the freshness-gate work
 in #37/#39/#40 grew `DriveControllerTests` well past the original ten. Rather
 than write parallel tests that would duplicate existing coverage, I checked
-#21's five acceptance-criteria bullets against what is already there:
+#21's five `What to cover` bullets against what is already there:
 
 - Stop flag asserted on every subsequent frame, not just the first -
   `HoldsTheStopFlagOnEveryTickUntilReArmed`, which asserts it across 50 ticks.
