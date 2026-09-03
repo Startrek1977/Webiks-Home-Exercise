@@ -57,7 +57,7 @@ work not yet started.*
 | Project | What you changed |
 |---|---|
 | `RoverRally.Core` | Converted to SDK-style (`Microsoft.NET.Sdk`), still net48/x86 (#12). `packages.config` → `PackageReference` for Newtonsoft.Json 6.0.8; dropped the explicit `System`/`System.Core` references, which the SDK supplies implicitly for net48 — everything else (`System.Configuration`, `System.Runtime.Remoting`, `System.Xml`, `System.Xml.Linq`) stayed explicit, since only those two are implicit outside `netcoreapp`/`net5+`; set `GenerateAssemblyInfo=false` rather than delete `AssemblyInfo.cs`, which still carries the real title/company/version metadata. No `Compile` items needed listing — the implicit glob reproduces the existing 24 files exactly. |
-| `RoverRally.App` | |
+| `RoverRally.App` | Same treatment, still net48/x86 (#13). `UseWPF=true` replaced the four explicit `PresentationCore`/`PresentationFramework`/`WindowsBase`/`System.Xaml` references and took over globbing the XAML — `App.xaml` as `ApplicationDefinition`, the rest as `Page` — so the old `ApplicationDefinition`/`Page`/`Compile` item list came out entirely rather than being converted line by line. Kept `AssemblyName=RoverRally.Station` explicit, since SDK-style otherwise derives it from the project file name (`RoverRally.App`) and every doc in the repo names the exe by the old name. `Data\rovers.json` and `Data\session-cache.bin` moved from `<None Include>` to `<None Update>`, since the SDK's own default glob already picks up any non-code file as `None` — `Include`-ing them again is a duplicate-item error. |
 | `RoverRally.Tests` | |
 
 Splitting the format conversion out from the retarget (#12 before #15) paid for
@@ -68,6 +68,24 @@ brand-new `NU1903` warning — a warning that had nothing to do with the
 framework move and everything to do with the file format change. I suppressed
 just that one advisory rather than let it slip in as unexplained noise, since
 the CVE itself is still deliberately unfixed.
+
+Rebuilding App surfaced a second file-format surprise that Core's own
+conversion had already run into without it being written down here: setting
+`PlatformTarget=x86` on an SDK-style project changes the *default*
+`OutputPath` to `bin\x86\Debug\`, not `bin\Debug\` —
+`AppendTargetFrameworkToOutputPath=false` only strips the `net48` folder, not
+the platform one. This solution has no AnyCPU configuration, so every
+SDK-style project here hits it. `RoverRally.Station.exe`'s path is the one
+thing #13's acceptance criteria pin down explicitly, so I caught it by
+checking the actual build output rather than trusting "Build succeeded", and
+pinned `OutputPath` per configuration in `RoverRally.App.csproj` to keep it at
+`bin\Debug\`/`bin\Release\`. `RoverRally.Core.csproj` has the same gap — its
+output genuinely sits at `bin\x86\Debug\` today, and its own PR history (#45)
+even shows a follow-up commit titled "Preserve core x86 output defaults" that
+turned out to fix a different problem (`PlatformTarget` missing from restore
+evaluation), not this one. Nothing depends on Core's literal output path yet,
+so it's silent rather than broken, but it's real drift from the old-style
+behaviour and worth folding into whichever issue next touches that file.
 
 ### Moving to 64-bit
 
