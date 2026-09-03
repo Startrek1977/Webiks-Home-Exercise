@@ -619,6 +619,38 @@ maximum-controller-speed cases alongside it (0 cm/s and `ushort.MaxValue`
 both units, so the imperial and metric readouts are pinned against each other
 at the boundaries and not just at one mid-range value.
 
+**#21** asked for the same two things this section already describes above -
+extract the command-assembly decision out of `MainWindow.xaml.cs`, and cover
+the emergency stop latch with tests - but by the time I picked it up, both had
+already shipped: the extraction landed with #20, and the freshness-gate work
+in #37/#39/#40 grew `DriveControllerTests` well past the original ten. Rather
+than write parallel tests that would duplicate existing coverage, I checked
+#21's five acceptance-criteria bullets against what is already there:
+
+- Stop flag asserted on every subsequent frame, not just the first -
+  `HoldsTheStopFlagOnEveryTickUntilReArmed`, which asserts it across 50 ticks.
+- The latch survives throttle movement, the original failure mode -
+  `IgnoresTheThrottleWhileTheStopIsLatched`, and the full-throttle tick inside
+  `NeverReportsItselfArmedWhileTheStopIsLatched`.
+- Only an explicit re-arm clears the latch - `ClearsTheLatchOnlyWhenTheOperatorReArms`
+  and `RefusesToReArmWhileTheThrottleIsOffCentre`.
+- Local armed state consistent with what is transmitted -
+  `NeverReportsItselfArmedWhileTheStopIsLatched` and its `AssertInvariant`
+  helper, plus `DisarmsLocallyWhenTheStopIsEngaged`.
+- Encoded frames carry the flag at bit 0 -
+  `EncodesTheLatchedStopAsBitZeroOfTheCommandFlags`, which asserts
+  `datagram[8] & 0x01` directly and then round-trips the frame through
+  `SimulatorFrameWriter.TryReadCommand` to confirm the rover-side reader
+  agrees.
+
+"A test fails against the pre-#20 behaviour and passes after it" is the
+mutation-testing paragraph above - putting the original two faults back
+turned seven of the ten tests that existed at the time red, including the one
+that reproduces Dana's report directly. I re-ran the current suite
+(`dotnet test --filter "FullyQualifiedName~DriveControllerTests"`) rather than
+the mutation again: 23 passed, 0 failed. No source or test changes were
+needed for #21 - it closes against work already covered here.
+
 ---
 
 ## Architecture Decisions
