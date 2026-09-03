@@ -60,6 +60,18 @@ namespace RoverRally.Core.Control
         private byte? _lastCommandRoverId;
 
         /// <summary>
+        /// Whether the rover this controller most recently addressed was
+        /// silent at the time - so a later tick can tell "still silent,
+        /// already accounted for by that decision" from "just went silent,
+        /// this is new." Without it, silence alone re-adopted a stop on
+        /// every tick forever, including the tick right after an operator
+        /// explicitly re-armed a rover that has no telemetry link at all:
+        /// the re-arm "worked" for exactly one tick and then relatched
+        /// itself (flagged by review on the pull request, #40).
+        /// </summary>
+        private bool _lastCommandRoverWasSilent;
+
+        /// <summary>
         /// Whether the given vehicle should be treated as holding a stop, for
         /// callers that just want the honest current picture (logging, the
         /// drive-state readout) rather than the guard's own, timing-aware
@@ -83,24 +95,33 @@ namespace RoverRally.Core.Control
 
         /// <summary>
         /// Whether a vehicle-reported stop justifies adopting it right now -
-        /// the #37 guard, made safe against the race above. A silent vehicle
-        /// always qualifies, no matter how long ago this controller last
-        /// transmitted: a vehicle that has stopped talking to the station
-        /// entirely must be treated as stopped regardless of timing. A vehicle
-        /// that IS reporting only has its freshness questioned when it is the
-        /// SAME vehicle this controller most recently addressed - only then
-        /// can a frame possibly predate our own last transmission to it. A
+        /// the #37 guard, made safe against the race above. A vehicle that IS
+        /// reporting only has its freshness questioned when it is the SAME
+        /// vehicle this controller most recently addressed - only then can a
+        /// frame possibly predate our own last transmission to it. A
         /// different vehicle was not the recipient of that transmission, so
         /// there is nothing of ours for its telemetry to be stale relative to;
         /// gating it on a timestamp that belongs to some other rover's tick is
         /// exactly what let selecting rover A right after commanding rover B
         /// suppress a stop A was genuinely reporting.
+        ///
+        /// Silence gets the same same-rover exemption, for the same reason,
+        /// via <see cref="_lastCommandRoverWasSilent"/>: a vehicle that has
+        /// stopped talking to the station entirely must be treated as stopped
+        /// - but only the first time that silence is seen. Once an operator
+        /// has explicitly re-armed through this exact gate, the silence
+        /// hasn't changed and isn't new evidence, so it must not keep
+        /// re-latching the stop it was just told to clear (#40) - that is
+        /// different from a vehicle that WAS reporting and then goes silent
+        /// mid-drive, which is new information and must still latch.
         /// </summary>
         private bool ShouldAdoptAVehicleReportedStop(byte roverId, bool isEmergencyStopped, DateTime lastFrameUtc, DateTime nowUtc)
         {
-            if (IsSilent(lastFrameUtc, nowUtc)) return true;
-            if (!isEmergencyStopped) return false;
+            bool silent = IsSilent(lastFrameUtc, nowUtc);
 
+            if (_lastCommandRoverId == roverId && silent) return !_lastCommandRoverWasSilent;
+            if (silent) return true;
+            if (!isEmergencyStopped) return false;
             if (_lastCommandRoverId != roverId) return true;
 
             return lastFrameUtc >= _lastCommandUtc;
@@ -147,6 +168,7 @@ namespace RoverRally.Core.Control
 
             _lastCommandUtc = nowUtc;
             _lastCommandRoverId = roverId;
+            _lastCommandRoverWasSilent = IsSilent(lastFrameUtc, nowUtc);
 
             if (_emergencyStopLatched)
             {
@@ -197,6 +219,7 @@ namespace RoverRally.Core.Control
 
             _lastCommandUtc = nowUtc;
             _lastCommandRoverId = roverId;
+            _lastCommandRoverWasSilent = IsSilent(lastFrameUtc, nowUtc);
 
             bool arming = !_armed;
 

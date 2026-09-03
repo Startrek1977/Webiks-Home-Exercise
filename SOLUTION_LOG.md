@@ -209,15 +209,32 @@ This landed on net48 and needed no retargeting, which is why it went first.
    telemetry not having caught up with a re-arm that was itself milliseconds
    old, and the guard trusted it. `DriveController` now tracks when it last
    decided what to transmit and only lets a reported stop justify a *new*
-   latch if the frame reporting it is at least as new as that - a silent
-   vehicle is exempt from the check entirely, since silence has no fresher
-   frame to wait for. Two tests pin this down directly:
-   `DoesNotRelatchOnAStaleFrameFromBeforeAnExplicitReArm` and
-   `StillAdoptsAStopConfirmedByAFrameNewerThanTheReArm`. Worth recording
+   latch if the frame reporting it is at least as new as that. Two tests pin
+   this down directly: `DoesNotRelatchOnAStaleFrameFromBeforeAnExplicitReArm`
+   and `StillAdoptsAStopConfirmedByAFrameNewerThanTheReArm`. Worth recording
    because it is the second time in this exercise that a defect only showed up
    against the real simulator - the codec's transcription-mirror problem was
    the first - and both times a passing unit-test suite was the wrong signal to
    stop on.
+
+   A Codex review on the pull request that carried this fix into `#4`'s branch
+   (PR #40 - the two land in the same history because `main` had already
+   merged this work by the time that branch was rebased forward) found the
+   remaining gap directly: a rover with **no** telemetry at all is silent by
+   definition, and the freshness guard's silence branch adopted a stop from
+   that alone on *every* tick, with no freshness check at all - including the
+   tick right after an operator explicitly re-armed it, throttle centred,
+   through the same gate as any other re-arm. Arming a rover with a dead
+   telemetry link "worked" for exactly one tick and then relatched itself.
+   I reproduced it first - `AnExplicitReArmOfANeverReportedRoverPersistsOnTheNextTick`
+   goes red against the code as it stood - before fixing it: the controller
+   now remembers whether the rover it most recently addressed *was* silent at
+   that decision, and only treats continued silence for that same rover as
+   already accounted for, not as fresh evidence to re-latch on. A rover that
+   was reporting fine and then genuinely goes silent mid-drive is unaffected -
+   that is still new information and still latches, which
+   `StillLatchesWhenAPreviouslyReportingRoverGoesSilent` pins down so the fix
+   cannot swing the other way into never latching a real silence-onset stop.
 
 4. **The geofence alert named the wrong rover (#4).** Not something Dana
    flagged - I found it reading `GeofenceMonitor` while working out what else

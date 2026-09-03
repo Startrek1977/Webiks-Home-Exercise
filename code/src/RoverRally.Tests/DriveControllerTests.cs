@@ -380,6 +380,68 @@ namespace RoverRally.Tests
             Assert.IsTrue(controller.IsEmergencyStopLatched);
         }
 
+        /// <summary>
+        /// Flagged by review on the pull request (#40): a rover that has
+        /// never reported at all is silent by definition, and the freshness
+        /// gate's silence branch used to adopt a stop from that alone on
+        /// every tick - including the tick right after an operator
+        /// explicitly re-armed it, throttle centred, through the same gate
+        /// as any other re-arm. That made arming a rover with no telemetry
+        /// link self-defeating: it "worked" for exactly one tick before
+        /// relatching itself.
+        /// </summary>
+        [TestMethod]
+        public void AnExplicitReArmOfANeverReportedRoverPersistsOnTheNextTick()
+        {
+            DateTime rearmMoment = Now;
+            DateTime nextTick = rearmMoment.AddMilliseconds(200);
+
+            DriveController controller = new DriveController();
+
+            StationCommand rearm;
+            Assert.IsTrue(controller.TryToggleArm(FalafelId, false, DateTime.MinValue, rearmMoment, 0, out rearm),
+                          "Setup: arming a silent rover with a centred throttle should succeed.");
+            Assert.IsTrue(rearm.Armed);
+
+            StationCommand afterRearm = controller.NextDriveCommand(
+                FalafelId, false, DateTime.MinValue, nextTick, 400, 0);
+
+            Assert.IsFalse(controller.IsEmergencyStopLatched,
+                           "The very next tick relatched a stop that had just been explicitly cleared, " +
+                           "because the rover is still silent - the same silence already accounted for at the re-arm.");
+            Assert.IsFalse(afterRearm.EmergencyStop);
+            Assert.IsTrue(afterRearm.Armed);
+            Assert.AreEqual((short)400, afterRearm.Throttle);
+        }
+
+        /// <summary>
+        /// The other half: silence is only exempt once it has already been
+        /// accounted for by an explicit re-arm. A rover that was reporting
+        /// fine and then genuinely goes silent mid-drive is new information,
+        /// and must still latch a protective stop - the freshness gate must
+        /// not become permanently deaf just because some earlier tick, for
+        /// this same rover, happened to see a fresh frame.
+        /// </summary>
+        [TestMethod]
+        public void StillLatchesWhenAPreviouslyReportingRoverGoesSilent()
+        {
+            DateTime reportingTick = Now;
+            DateTime silentTick = reportingTick.AddSeconds(3);
+
+            DriveController controller = ArmedController();
+
+            StationCommand whileReporting = controller.NextDriveCommand(
+                FalafelId, false, reportingTick, reportingTick, FullThrottle, 0);
+            Assert.IsFalse(whileReporting.EmergencyStop);
+
+            StationCommand afterGoingSilent = controller.NextDriveCommand(
+                FalafelId, false, reportingTick, silentTick, FullThrottle, 0);
+
+            Assert.IsTrue(controller.IsEmergencyStopLatched,
+                          "A rover that stopped reporting mid-drive was not treated as stopped.");
+            Assert.IsTrue(afterGoingSilent.EmergencyStop);
+        }
+
         [TestMethod]
         public void VehicleReportsStopped_TrueWhenTheVehicleItselfReportsStopped()
         {
