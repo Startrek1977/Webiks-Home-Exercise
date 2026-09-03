@@ -17,7 +17,7 @@ namespace RoverRally.Tests
         [TestMethod]
         public void ReportsZeroPercentForAFlatPack()
         {
-            Assert.AreEqual(0, BatteryGauge.ToPercent(9000));
+            Assert.AreEqual(0, BatteryGauge.ToPercent(BatteryGauge.EmptyMilliVolts));
         }
 
         [TestMethod]
