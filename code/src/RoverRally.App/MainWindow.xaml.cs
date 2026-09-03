@@ -202,7 +202,7 @@ namespace RoverRally.App
 
             Track.UpdateRover(rover);
 
-            if (_geofence.IsOutside(rover.Position))
+            if (_geofence.IsOutside(rover.Id, rover.Position))
             {
                 if (_fencedAlerted.Add(rover.Id))
                 {

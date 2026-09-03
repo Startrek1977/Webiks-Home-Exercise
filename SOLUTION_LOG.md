@@ -219,6 +219,72 @@ This landed on net48 and needed no retargeting, which is why it went first.
    the first - and both times a passing unit-test suite was the wrong signal to
    stop on.
 
+4. **The geofence alert named the wrong rover (#4).** Not something Dana
+   flagged - I found it reading `GeofenceMonitor` while working out what else
+   in the station shared state the way `DriveController` used to. `IsOutside`
+   took a `position` parameter and then tested `_lastEvaluated`, a single
+   field left over from the *previous* call, instead. With one
+   `GeofenceMonitor` serving the whole fleet and `MainWindow` calling it once
+   per rover per frame, "the previous call" was whichever rover's frame the
+   station had decoded immediately before - so every verdict was actually
+   about a different vehicle. The simulator sends the fleet in the same
+   order every tick, which made the mis-attribution deterministic: Sandstorm
+   is the only rover built with `takesWideLines: true`, and its excursions
+   were coming back as a warning about Mishmish, the rover one slot behind it
+   in the roster, while Mishmish stayed on the racing line the whole time. A
+   marshal reading that warning would have been sent to the wrong vehicle.
+   I re-scoped the issue from P1 to P0 once I'd traced that through - a
+   one-sample lag is a nuisance, sending help to a car that isn't in trouble
+   while the one that is goes unreported is not.
+
+   The comment above the old code called the lag "a sample of hysteresis."
+   It wasn't - hysteresis needs a consecutive-sample threshold or separate
+   enter/exit boundaries, and a single stale field is neither, it is just a
+   bug. I decided against adding real hysteresis in its place: this is a
+   safety alert, and delaying it to smooth a single noisy GPS fix trades a
+   correctness problem for a timeliness one. `IsOutside` now takes
+   `(roverId, position)` and reports the fence state of exactly the position
+   it is given, immediately - no memory of any previous call, for this rover
+   or any other. `roverId` doesn't affect the answer; it stays in the
+   signature so a call site can't check one rover's position while logging
+   the verdict under another's name, and so a future per-rover hysteresis
+   scheme would not need to change every caller. Getting rid of the lag also
+   got rid of the shared state that caused the mis-attribution in the first
+   place - there is nothing left in the monitor for one rover's call to leak
+   into another's.
+
+   Six tests in `GeofenceMonitorTests` cover inside, outside, crossing both
+   directions, the first-ever sample for a rover (the old code forced this
+   to "inside" no matter where the rover actually was), and - the direct
+   regression test - interleaved calls for two different rovers, asserting
+   each verdict matches only its own rover's position. I checked the tests
+   were worth having by reinstating the original shared-field version
+   (adapted to the new signature) and rebuilding: five of the six went red,
+   including the interleaved one, which failed on the very first call it
+   made for Sandstorm - which is exactly the bug.
+
+   Verifying against the real simulator needed a throwaway console harness
+   rather than the WPF station, because `RoverRally.Station.exe` is a
+   `WinExe` and its `Log.Warn` output goes nowhere I could capture headless.
+   The harness reproduces `MainWindow.ApplyFrame`'s geofence handling exactly
+   - one `GeofenceMonitor`, the real fence bounds from `App.config`, one
+   `IsOutside(roverId, position)` call per rover per frame - against the real
+   simulator over real UDP. It surfaced something the issue itself warned
+   about: the simulator sends a no-fix, zeroed-position frame for every
+   rover on its own periodic schedule (`tick % 40 == rover.Id` in
+   `Program.cs`, so once per rover every 8 seconds, staggered), and `(0,0)`
+   is outside any fence, so every rover warns on its own schedule regardless
+   of this fix. That's `#36`, not this bug - and the harness confirmed the
+   difference: those warnings were each rover reporting its own real `(0,0)`
+   frame, not another rover's position under its name. Ninety seconds in, a
+   genuine excursion showed up on top of that noise -
+   `12:14:31.803 [WARN] Sandstorm has left the fenced area. pos=32.282813, 34.920425`
+   - a real, non-zero position, and Sandstorm was the only rover it was ever
+   attributed to across the whole run. `#36` still needs its own fix before
+   the fence alert is fully trustworthy, exactly as the issue said; what this
+   change fixes is that whichever position a verdict is based on, it is now
+   always the position - and the rover - it was actually asked about.
+
 ---
 
 ## What You Removed
