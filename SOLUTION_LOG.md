@@ -371,41 +371,45 @@ This landed on net48 and needed no retargeting, which is why it went first.
 **`AnalyzerHost`, `StationMonitorService`, `RunSnapshot`.** Both are hard
 blockers for the .NET 8 move on their own terms - `AnalyzerHost` loads
 "post-run analyzers" into a second `AppDomain`, and `AppDomain.CreateDomain`
-does not exist outside .NET Framework; `StationMonitorService` publishes the
-fleet over `System.Runtime.Remoting` with `RunSnapshot` serialized through
-`BinaryFormatter`, and neither survives to .NET 8 at all. Before deciding
-whether to port them or drop them, I spiked (#1) whether anything actually
-uses them, because a working office-overview client is a different problem
-from a dead one.
+is not supported outside .NET Framework (it throws `PlatformNotSupportedException`
+on .NET Core/5+); `StationMonitorService` publishes the fleet over
+`System.Runtime.Remoting`, which has no .NET 8 implementation at all, with
+`RunSnapshot` serialized through `BinaryFormatter`. Before deciding whether to
+port them or drop them, I spiked (#1) whether anything actually uses them,
+because a working office-overview client is a different problem from a dead
+one.
 
 Nothing does. I traced every reference to both types across the App, Core,
 and Tests projects, the `.csproj` compile lists, `App.config`, and every doc
-in the repo. Both classes compile into `RoverRally.Core` - they're in the
-`<Compile Include>` lists - but neither is ever constructed anywhere. No
+in the repo. Both classes compile into `RoverRally.Core`
+(`RoverRally.Core.csproj:57` for `AnalyzerHost`, `:58-59` for `RunSnapshot`
+and `StationMonitorService`) but neither is ever constructed anywhere. No
 `Analyzers` folder and no `*.Analyzer.dll` exist anywhere in the repo, source
 or build output, so `AnalyzerHost.Discover()` has nothing to find even in
-principle. `App.config` does define `StationMonitorEndpoint` and
+principle. `App.config:18-20` does define `StationMonitorEndpoint` and
 `StationMonitorPort`, but the only code that reads them is
-`SettingsView.xaml.cs`, which concatenates the two values into a read-only
-`TextBlock` for display - neither value is ever passed to
+`SettingsView.xaml.cs:31-32`, which concatenates the two values into a
+read-only `TextBlock` for display - neither value is ever passed to
 `StationMonitorService.Publish`, and nothing calls `Publish` at all. The
 "office overview client" is not a running feature with dead config left over
 from decommissioning it; it's a Settings-tab label pointing at a service that
 never starts.
 
-`docs/operations-guide.md` documents both as working - "the overview client
-in the office can attach to a running station," "post-run analyzers... are
-picked up automatically." I did not take that as evidence of use, for the
+`docs/operations-guide.md:121-129` documents both as working - "the overview
+client in the office can attach to a running station," "post-run analyzers...
+are picked up automatically." I did not take that as evidence of use, for the
 same reason "trust the code over the documents" mattered on the telemetry SDK
 and cut the other way on the emergency stop: a document tells you what's
 *supposed* to happen, not what does. Here the code, the build output, and the
 absence of a single caller all agree with each other and disagree with the
-document. `docs/architecture.md` dates the office overview client to 2019 and
-notes nobody has owned the station full time since 2021, which is consistent
-with docs describing a feature that quietly stopped being used and was never
-un-written. `INSTRUCTIONS.md` - Dana's brief, which I'm treating as the actual
-source of requirements - never mentions monitoring, remote overview, or
-analyzers in any form.
+document. `docs/architecture.md:12` dates the office overview client to 2019,
+and `docs/architecture.md:16` notes nobody has owned the station full time
+since 2021, which is consistent with docs describing a feature that quietly
+stopped being used and was never unwritten. `INSTRUCTIONS.md` - Dana's brief,
+kept local per this repo's own convention (`.git/info/exclude`) and not
+committed, so it isn't visible on GitHub alongside this diff, but readable on
+disk exactly like every other doc I cite here - never mentions monitoring,
+remote overview, or analyzers in any form.
 
 **Decision: remove outright, not port.** Porting either one means building new
 functionality from scratch - a real remote-monitoring channel, a real plugin
@@ -419,9 +423,10 @@ I haven't deleted the files yet - that's #7 and #8, which this issue blocks -
 but I've scoped it here so it isn't rediscovered: `Core/Monitoring/AnalyzerHost.cs`,
 `Core/Monitoring/StationMonitorService.cs`, `Core/Monitoring/RunSnapshot.cs`
 (and `RunSnapshotEntry`), the `System.Runtime.Remoting` project reference, the
-two `App.config` keys, the `MonitorEndpointText` line in `SettingsView`, and
-the stale "Remote monitoring" / "Post-run analyzers" sections of
-`docs/operations-guide.md`. Full evidence trace is on #1.
+two `App.config:18-20` keys, the `SettingsView.xaml.cs:31-32` display line,
+and the stale "Remote monitoring" / "Post-run analyzers" sections of
+`docs/operations-guide.md:121-129`. Full evidence trace, with the same
+file:line citations, is on #1.
 
 ---
 
