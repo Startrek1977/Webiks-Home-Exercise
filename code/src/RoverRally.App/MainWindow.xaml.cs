@@ -185,14 +185,17 @@ namespace RoverRally.App
 
             rover.ApplyFrame(frame, receivedUtc);
 
-            Track.UpdateRover(rover);
-
-            // A no-fix frame carries no position (the protocol zeroes it), so
-            // there is nothing here to evaluate the fence against - leave the
-            // last verdict standing rather than judging a reading that isn't
-            // a position.
+            // A no-fix frame carries no position (the protocol zeroes it) and
+            // Rover.ApplyFrame leaves Position at its last known value, so
+            // there is nothing new here to draw or to judge the fence
+            // against. Calling Track.UpdateRover anyway would just
+            // re-append that same retained point to the trail on every
+            // no-fix tick, which - given enough of them in a row - evicts
+            // real history with copies of a stale point.
             if (frame.HasGpsFix)
             {
+                Track.UpdateRover(rover);
+
                 if (_geofence.IsOutside(rover.Id, rover.Position))
                 {
                     if (_fencedAlerted.Add(rover.Id))

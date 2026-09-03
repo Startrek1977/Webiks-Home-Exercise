@@ -349,6 +349,19 @@ This landed on net48 and needed no retargeting, which is why it went first.
    with no fence warnings and no trail excursions, only the marker sitting
    still on a fix-less tick and picking back up on the next one.
 
+   A Codex review on the pull request found the gap the simulator's own
+   pattern - one isolated no-fix frame at a time - couldn't surface:
+   `MainWindow.ApplyFrame` was still calling `Track.UpdateRover`
+   unconditionally, and since `Rover.ApplyFrame` leaves `Position` at its
+   last known value on a no-fix frame, that call just re-appended the same
+   retained point to the trail on every no-fix tick. One point is
+   invisible; a real outage lasting long enough - 300 consecutive no-fix
+   frames, a minute at 5Hz - would fill the whole `TrailLength` buffer
+   with copies of a stale point and evict the genuine route underneath it.
+   `Track.UpdateRover` now runs inside the same `frame.HasGpsFix` gate as
+   the geofence check: a no-fix frame draws nothing, exactly as it judges
+   nothing.
+
 ---
 
 ## What You Removed
