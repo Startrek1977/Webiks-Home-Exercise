@@ -15,12 +15,17 @@ namespace RoverRally.Tests
     public class DriveControllerTests
     {
         private const short FullThrottle = 1000;
+        private const byte FalafelId = 1;
+        private const byte SandstormId = 2;
 
         /// <summary>
         /// Stands in for "the vehicle just reported, right now, and it isn't
         /// stopped" wherever a test's own timing isn't the thing under test -
         /// most of the pre-existing suite, which predates #37 and its
-        /// telemetry timestamps entirely.
+        /// telemetry timestamps entirely. Every test below that is not
+        /// specifically about cross-rover or stale-frame timing addresses
+        /// FalafelId throughout, so the freshness gate's same-rover branch is
+        /// what applies - the cross-rover bypass has its own dedicated test.
         /// </summary>
         private static DateTime Now
         {
@@ -35,7 +40,7 @@ namespace RoverRally.Tests
 
             for (int tick = 1; tick <= 50; tick++)
             {
-                StationCommand command = controller.NextDriveCommand(false, Now, Now, FullThrottle, FullThrottle);
+                StationCommand command = controller.NextDriveCommand(FalafelId, false, Now, Now, FullThrottle, FullThrottle);
 
                 Assert.IsTrue(command.EmergencyStop,
                               "The stop was released on tick " + tick + ".");
@@ -48,7 +53,7 @@ namespace RoverRally.Tests
             DriveController controller = ArmedController();
             controller.EngageEmergencyStop();
 
-            StationCommand command = controller.NextDriveCommand(false, Now, Now, FullThrottle, -750);
+            StationCommand command = controller.NextDriveCommand(FalafelId, false, Now, Now, FullThrottle, -750);
 
             Assert.IsTrue(command.EmergencyStop);
             Assert.IsFalse(command.Armed);
@@ -84,10 +89,10 @@ namespace RoverRally.Tests
             AssertInvariant(controller, "after the stop");
 
             StationCommand refused;
-            controller.TryToggleArm(false, Now, Now, FullThrottle, out refused);
+            controller.TryToggleArm(FalafelId, false, Now, Now, FullThrottle, out refused);
             AssertInvariant(controller, "after a refused re-arm");
 
-            controller.NextDriveCommand(false, Now, Now, FullThrottle, 0);
+            controller.NextDriveCommand(FalafelId, false, Now, Now, FullThrottle, 0);
             AssertInvariant(controller, "after a tick at full throttle");
 
             Assert.IsTrue(controller.IsEmergencyStopLatched, "The latch was lost along the way.");
@@ -99,7 +104,7 @@ namespace RoverRally.Tests
 
             Assert.IsFalse(controller.IsArmed,
                            "The station reported itself armed while a stop was latched, " + when + ".");
-            Assert.IsFalse(controller.NextDriveCommand(false, Now, Now, FullThrottle, FullThrottle).Armed,
+            Assert.IsFalse(controller.NextDriveCommand(FalafelId, false, Now, Now, FullThrottle, FullThrottle).Armed,
                            "The station transmitted an armed flag while a stop was latched, " + when + ".");
         }
 
@@ -111,17 +116,17 @@ namespace RoverRally.Tests
 
             for (int tick = 0; tick < 10; tick++)
             {
-                Assert.IsTrue(controller.NextDriveCommand(false, Now, Now, 0, 0).EmergencyStop);
+                Assert.IsTrue(controller.NextDriveCommand(FalafelId, false, Now, Now, 0, 0).EmergencyStop);
             }
 
             StationCommand rearm;
-            Assert.IsTrue(controller.TryToggleArm(false, Now, Now, 0, out rearm));
+            Assert.IsTrue(controller.TryToggleArm(FalafelId, false, Now, Now, 0, out rearm));
 
             Assert.IsFalse(rearm.EmergencyStop);
             Assert.IsTrue(rearm.Armed);
             Assert.IsFalse(controller.IsEmergencyStopLatched);
 
-            StationCommand next = controller.NextDriveCommand(false, Now, Now, 400, -200);
+            StationCommand next = controller.NextDriveCommand(FalafelId, false, Now, Now, 400, -200);
 
             Assert.IsFalse(next.EmergencyStop);
             Assert.IsTrue(next.Armed);
@@ -136,13 +141,13 @@ namespace RoverRally.Tests
             controller.EngageEmergencyStop();
 
             StationCommand command;
-            bool rearmed = controller.TryToggleArm(false, Now, Now, FullThrottle, out command);
+            bool rearmed = controller.TryToggleArm(FalafelId, false, Now, Now, FullThrottle, out command);
 
             Assert.IsFalse(rearmed);
             Assert.IsNull(command);
             Assert.IsTrue(controller.IsEmergencyStopLatched, "The refused press cleared the latch anyway.");
             Assert.IsFalse(controller.IsArmed);
-            Assert.IsTrue(controller.NextDriveCommand(false, Now, Now, FullThrottle, 0).EmergencyStop);
+            Assert.IsTrue(controller.NextDriveCommand(FalafelId, false, Now, Now, FullThrottle, 0).EmergencyStop);
         }
 
         [TestMethod]
@@ -151,7 +156,7 @@ namespace RoverRally.Tests
             DriveController controller = ArmedController();
 
             StationCommand command;
-            bool toggled = controller.TryToggleArm(false, Now, Now, FullThrottle, out command);
+            bool toggled = controller.TryToggleArm(FalafelId, false, Now, Now, FullThrottle, out command);
 
             Assert.IsTrue(toggled, "Disarming is never the unsafe direction.");
             Assert.IsFalse(controller.IsArmed);
@@ -163,7 +168,7 @@ namespace RoverRally.Tests
         {
             DriveController controller = ArmedController();
 
-            StationCommand command = controller.NextDriveCommand(false, Now, Now, -450, 875);
+            StationCommand command = controller.NextDriveCommand(FalafelId, false, Now, Now, -450, 875);
 
             Assert.AreEqual((short)-450, command.Throttle);
             Assert.AreEqual((short)875, command.Steering);
@@ -176,7 +181,7 @@ namespace RoverRally.Tests
         {
             DriveController controller = new DriveController();
 
-            StationCommand command = controller.NextDriveCommand(false, Now, Now, FullThrottle, 0);
+            StationCommand command = controller.NextDriveCommand(FalafelId, false, Now, Now, FullThrottle, 0);
 
             Assert.IsFalse(controller.IsArmed);
             Assert.IsFalse(command.Armed);
@@ -194,7 +199,7 @@ namespace RoverRally.Tests
             DriveController controller = ArmedController();
             controller.EngageEmergencyStop();
 
-            StationCommand held = controller.NextDriveCommand(false, Now, Now, FullThrottle, FullThrottle);
+            StationCommand held = controller.NextDriveCommand(FalafelId, false, Now, Now, FullThrottle, FullThrottle);
             byte[] datagram = FrameCodec.EncodeCommand(4, held.Throttle, held.Steering,
                                                       held.EmergencyStop, held.Armed);
 
@@ -218,13 +223,13 @@ namespace RoverRally.Tests
         public void RefusesToClearAStopTheVehicleIsStillReportingOnAnUnlatchedStation()
         {
             DriveController disarmed = new DriveController();
-            StationCommand disarmedCommand = disarmed.NextDriveCommand(true, Now, Now, FullThrottle, FullThrottle);
+            StationCommand disarmedCommand = disarmed.NextDriveCommand(FalafelId, true, Now, Now, FullThrottle, FullThrottle);
             Assert.IsTrue(disarmedCommand.EmergencyStop,
                           "A disarmed station still transmitted the false-clear that let the vehicle free-run.");
             Assert.AreEqual((short)0, disarmedCommand.Throttle);
 
             DriveController armed = ArmedController();
-            StationCommand armedCommand = armed.NextDriveCommand(true, Now, Now, FullThrottle, FullThrottle);
+            StationCommand armedCommand = armed.NextDriveCommand(FalafelId, true, Now, Now, FullThrottle, FullThrottle);
             Assert.IsTrue(armedCommand.EmergencyStop);
             Assert.IsFalse(armedCommand.Armed);
         }
@@ -234,7 +239,7 @@ namespace RoverRally.Tests
         {
             DriveController controller = ArmedController();
 
-            controller.NextDriveCommand(true, Now, Now, FullThrottle, FullThrottle);
+            controller.NextDriveCommand(FalafelId, true, Now, Now, FullThrottle, FullThrottle);
 
             Assert.IsTrue(controller.IsEmergencyStopLatched,
                           "The station did not adopt the stop the vehicle reported.");
@@ -247,7 +252,7 @@ namespace RoverRally.Tests
             DriveController controller = new DriveController();
 
             StationCommand command;
-            bool rearmed = controller.TryToggleArm(true, Now, Now, FullThrottle, out command);
+            bool rearmed = controller.TryToggleArm(FalafelId, true, Now, Now, FullThrottle, out command);
 
             Assert.IsFalse(rearmed, "An adopted stop was cleared without a centred throttle.");
             Assert.IsNull(command);
@@ -261,7 +266,7 @@ namespace RoverRally.Tests
             DriveController controller = new DriveController();
 
             StationCommand command;
-            bool rearmed = controller.TryToggleArm(true, Now, Now, 0, out command);
+            bool rearmed = controller.TryToggleArm(FalafelId, true, Now, Now, 0, out command);
 
             Assert.IsTrue(rearmed);
             Assert.IsFalse(command.EmergencyStop);
@@ -278,7 +283,9 @@ namespace RoverRally.Tests
         /// still reporting the old stop - and a guard that trusted it blindly
         /// would relatch the very thing it was just told to clear. This is
         /// what makes ShouldAdoptAVehicleReportedStop's freshness check
-        /// necessary rather than decorative.
+        /// necessary rather than decorative. Both calls address the same
+        /// rover throughout, so the same-rover branch of the gate is what is
+        /// under test here.
         /// </summary>
         [TestMethod]
         public void DoesNotRelatchOnAStaleFrameFromBeforeAnExplicitReArm()
@@ -288,16 +295,16 @@ namespace RoverRally.Tests
             DateTime nextTick = rearmMoment.AddMilliseconds(20);
 
             DriveController controller = new DriveController();
-            controller.NextDriveCommand(true, beforeRearm, beforeRearm, FullThrottle, FullThrottle);
+            controller.NextDriveCommand(FalafelId, true, beforeRearm, beforeRearm, FullThrottle, FullThrottle);
             Assert.IsTrue(controller.IsEmergencyStopLatched, "Setup: the stop should have been adopted first.");
 
             StationCommand rearm;
-            Assert.IsTrue(controller.TryToggleArm(true, beforeRearm, rearmMoment, 0, out rearm));
+            Assert.IsTrue(controller.TryToggleArm(FalafelId, true, beforeRearm, rearmMoment, 0, out rearm));
             Assert.IsFalse(controller.IsEmergencyStopLatched, "Setup: the re-arm should have cleared the latch.");
 
             // The next tick fires before any fresher telemetry has arrived -
             // frame timestamp is still the pre-rearm one.
-            StationCommand afterRearm = controller.NextDriveCommand(true, beforeRearm, nextTick, 400, 0);
+            StationCommand afterRearm = controller.NextDriveCommand(FalafelId, true, beforeRearm, nextTick, 400, 0);
 
             Assert.IsFalse(controller.IsEmergencyStopLatched,
                            "A stale, pre-rearm frame relatched a stop that had just been cleared.");
@@ -322,17 +329,117 @@ namespace RoverRally.Tests
             DateTime nextTick = confirmingFrame.AddMilliseconds(20);
 
             DriveController controller = new DriveController();
-            controller.NextDriveCommand(true, beforeRearm, beforeRearm, FullThrottle, FullThrottle);
+            controller.NextDriveCommand(FalafelId, true, beforeRearm, beforeRearm, FullThrottle, FullThrottle);
 
             StationCommand rearm;
-            Assert.IsTrue(controller.TryToggleArm(true, beforeRearm, rearmMoment, 0, out rearm));
+            Assert.IsTrue(controller.TryToggleArm(FalafelId, true, beforeRearm, rearmMoment, 0, out rearm));
 
             StationCommand afterConfirmation =
-                controller.NextDriveCommand(true, confirmingFrame, nextTick, 400, 0);
+                controller.NextDriveCommand(FalafelId, true, confirmingFrame, nextTick, 400, 0);
 
             Assert.IsTrue(controller.IsEmergencyStopLatched,
                           "A confirmed, post-rearm stop was not adopted.");
             Assert.IsTrue(afterConfirmation.EmergencyStop);
+        }
+
+        /// <summary>
+        /// Flagged by review on the pull request, and reproduced here: the
+        /// freshness gate is one field shared by the whole controller, but
+        /// the controller addresses one rover at a time. Ticking for
+        /// Sandstorm advances that field to "now" regardless of Sandstorm's
+        /// own telemetry age; switching straight to Falafel, who is reporting
+        /// a genuine stop from a frame that merely happens to be a little
+        /// older than Sandstorm's tick, must not let that unrelated timestamp
+        /// suppress the adoption - Falafel was never the recipient of
+        /// anything this controller sent, so there is nothing for its
+        /// telemetry to be stale relative to.
+        /// </summary>
+        [TestMethod]
+        public void DoesNotSuppressAdoptionForADifferentRoverJustBecauseAnotherRoverWasCommandedMoreRecently()
+        {
+            DateTime falafelReportedStopped = Now;
+            DateTime sandstormTick = falafelReportedStopped.AddMilliseconds(80);
+            DateTime selectFalafelTick = sandstormTick.AddMilliseconds(20);
+
+            DriveController controller = new DriveController();
+
+            // Sandstorm is selected first, driving normally - not stopped,
+            // reporting fresh. This is what advances _lastCommandUtc past
+            // Falafel's already-genuine stop report.
+            StationCommand sandstormCommand = controller.NextDriveCommand(
+                SandstormId, false, sandstormTick, sandstormTick, FullThrottle, 0);
+            Assert.IsFalse(sandstormCommand.EmergencyStop);
+
+            // The operator now selects Falafel, which has been reporting a
+            // stop since before Sandstorm's own tick above.
+            StationCommand falafelCommand = controller.NextDriveCommand(
+                FalafelId, true, falafelReportedStopped, selectFalafelTick, FullThrottle, FullThrottle);
+
+            Assert.IsTrue(falafelCommand.EmergencyStop,
+                          "Falafel's genuinely-reported stop was suppressed by Sandstorm's unrelated tick.");
+            Assert.IsTrue(controller.IsEmergencyStopLatched);
+        }
+
+        /// <summary>
+        /// Flagged by review on the pull request (#40): a rover that has
+        /// never reported at all is silent by definition, and the freshness
+        /// gate's silence branch used to adopt a stop from that alone on
+        /// every tick - including the tick right after an operator
+        /// explicitly re-armed it, throttle centred, through the same gate
+        /// as any other re-arm. That made arming a rover with no telemetry
+        /// link self-defeating: it "worked" for exactly one tick before
+        /// relatching itself.
+        /// </summary>
+        [TestMethod]
+        public void AnExplicitReArmOfANeverReportedRoverPersistsOnTheNextTick()
+        {
+            DateTime rearmMoment = Now;
+            DateTime nextTick = rearmMoment.AddMilliseconds(200);
+
+            DriveController controller = new DriveController();
+
+            StationCommand rearm;
+            Assert.IsTrue(controller.TryToggleArm(FalafelId, false, DateTime.MinValue, rearmMoment, 0, out rearm),
+                          "Setup: arming a silent rover with a centred throttle should succeed.");
+            Assert.IsTrue(rearm.Armed);
+
+            StationCommand afterRearm = controller.NextDriveCommand(
+                FalafelId, false, DateTime.MinValue, nextTick, 400, 0);
+
+            Assert.IsFalse(controller.IsEmergencyStopLatched,
+                           "The very next tick relatched a stop that had just been explicitly cleared, " +
+                           "because the rover is still silent - the same silence already accounted for at the re-arm.");
+            Assert.IsFalse(afterRearm.EmergencyStop);
+            Assert.IsTrue(afterRearm.Armed);
+            Assert.AreEqual((short)400, afterRearm.Throttle);
+        }
+
+        /// <summary>
+        /// The other half: silence is only exempt once it has already been
+        /// accounted for by an explicit re-arm. A rover that was reporting
+        /// fine and then genuinely goes silent mid-drive is new information,
+        /// and must still latch a protective stop - the freshness gate must
+        /// not become permanently deaf just because some earlier tick, for
+        /// this same rover, happened to see a fresh frame.
+        /// </summary>
+        [TestMethod]
+        public void StillLatchesWhenAPreviouslyReportingRoverGoesSilent()
+        {
+            DateTime reportingTick = Now;
+            DateTime silentTick = reportingTick.AddSeconds(3);
+
+            DriveController controller = ArmedController();
+
+            StationCommand whileReporting = controller.NextDriveCommand(
+                FalafelId, false, reportingTick, reportingTick, FullThrottle, 0);
+            Assert.IsFalse(whileReporting.EmergencyStop);
+
+            StationCommand afterGoingSilent = controller.NextDriveCommand(
+                FalafelId, false, reportingTick, silentTick, FullThrottle, 0);
+
+            Assert.IsTrue(controller.IsEmergencyStopLatched,
+                          "A rover that stopped reporting mid-drive was not treated as stopped.");
+            Assert.IsTrue(afterGoingSilent.EmergencyStop);
         }
 
         [TestMethod]
@@ -370,7 +477,7 @@ namespace RoverRally.Tests
             DriveController controller = new DriveController();
 
             StationCommand command;
-            Assert.IsTrue(controller.TryToggleArm(false, Now, Now, 0, out command));
+            Assert.IsTrue(controller.TryToggleArm(FalafelId, false, Now, Now, 0, out command));
             Assert.IsTrue(controller.IsArmed);
 
             return controller;

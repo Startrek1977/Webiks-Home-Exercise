@@ -165,10 +165,20 @@ namespace RoverRally.App
 
         private void Telemetry_FrameReceived(object sender, TelemetryReceivedEventArgs e)
         {
-            Dispatcher.BeginInvoke(new Action(delegate { ApplyFrame(e.Frame); }));
+            DateTime receivedUtc = e.ReceivedUtc;
+            Dispatcher.BeginInvoke(new Action(delegate { ApplyFrame(e.Frame, receivedUtc); }));
         }
 
-        private void ApplyFrame(TelemetryFrame frame)
+        /// <summary>
+        /// <paramref name="receivedUtc"/> is when the listener thread decoded
+        /// this frame, not when this method finally runs - BeginInvoke only
+        /// queues the call, and the UI thread can be busy with other work
+        /// (an ARM click, say) by the time it gets here. Stamping
+        /// Rover.LastFrameUtc with "now" at that point would record queueing
+        /// delay instead of when the vehicle actually reported, which is
+        /// exactly the gap DriveController's re-arm race relies on.
+        /// </summary>
+        private void ApplyFrame(TelemetryFrame frame, DateTime receivedUtc)
         {
             Rover rover = _vm.Rovers.FirstOrDefault(r => r.Id == frame.RoverId);
             if (rover == null) return;
@@ -180,7 +190,7 @@ namespace RoverRally.App
             rover.SignalPercent = frame.SignalPercent;
             rover.MotorTemperatureC = frame.MotorTempDeciC / 10.0;
             rover.TiltDegrees = frame.TiltDeciDeg / 10.0;
-            rover.LastFrameUtc = DateTime.UtcNow;
+            rover.LastFrameUtc = receivedUtc;
             rover.LastSequence = frame.Sequence;
             rover.IsArmed = frame.IsArmed;
             rover.IsEmergencyStopped = frame.IsEmergencyStopped;
@@ -192,7 +202,7 @@ namespace RoverRally.App
 
             Track.UpdateRover(rover);
 
-            if (_geofence.IsOutside(rover.Position))
+            if (_geofence.IsOutside(rover.Id, rover.Position))
             {
                 if (_fencedAlerted.Add(rover.Id))
                 {
@@ -221,7 +231,7 @@ namespace RoverRally.App
 
             bool wasLatched = _drive.IsEmergencyStopLatched;
 
-            StationCommand command = _drive.NextDriveCommand(rover.IsEmergencyStopped, rover.LastFrameUtc,
+            StationCommand command = _drive.NextDriveCommand(rover.Id, rover.IsEmergencyStopped, rover.LastFrameUtc,
                                                              DateTime.UtcNow,
                                                              (short)ThrottleSlider.Value,
                                                              (short)SteeringSlider.Value);
@@ -265,7 +275,7 @@ namespace RoverRally.App
                               DriveController.VehicleReportsStopped(rover.IsEmergencyStopped, rover.LastFrameUtc, DateTime.UtcNow);
 
             StationCommand command;
-            if (!_drive.TryToggleArm(rover.IsEmergencyStopped, rover.LastFrameUtc, DateTime.UtcNow,
+            if (!_drive.TryToggleArm(rover.Id, rover.IsEmergencyStopped, rover.LastFrameUtc, DateTime.UtcNow,
                                      (short)ThrottleSlider.Value, out command))
             {
                 Log.Warn("Re-arm of " + rover.Name + " refused: the throttle is not centred.");

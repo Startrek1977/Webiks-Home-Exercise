@@ -43,14 +43,33 @@ namespace RoverRally.Core.Control
         private bool _emergencyStopLatched;
 
         /// <summary>
-        /// When this controller last decided what to transmit. Guards against
-        /// a race that live simulator testing caught: telemetry lags a tick or
-        /// two behind whatever the station just sent, so the frame available
-        /// right after an explicit re-arm can still be the pre-clear one. Using
-        /// it anyway would make the guard immediately relatch the stop it was
-        /// just told to clear - see ShouldAdoptAVehicleReportedStop.
+        /// When this controller last decided what to transmit, and to whom.
+        /// Guards against a race that live simulator testing caught: telemetry
+        /// lags a tick or two behind whatever the station just sent, so the
+        /// frame available right after an explicit re-arm can still be the
+        /// pre-clear one. Using it anyway would make the guard immediately
+        /// relatch the stop it was just told to clear - see
+        /// ShouldAdoptAVehicleReportedStop. The rover id matters as much as
+        /// the timestamp: this controller addresses one rover at a time but
+        /// is shared across selections (see the class remarks), so a
+        /// timestamp from commanding rover B says nothing about whether a
+        /// frame from rover A is stale - only a comparison against B could
+        /// ever be stale relative to it, and that is a different rover.
         /// </summary>
         private DateTime _lastCommandUtc = DateTime.MinValue;
+        private byte? _lastCommandRoverId;
+
+        /// <summary>
+        /// Whether the rover this controller most recently addressed was
+        /// silent at the time - so a later tick can tell "still silent,
+        /// already accounted for by that decision" from "just went silent,
+        /// this is new." Without it, silence alone re-adopted a stop on
+        /// every tick forever, including the tick right after an operator
+        /// explicitly re-armed a rover that has no telemetry link at all:
+        /// the re-arm "worked" for exactly one tick and then relatched
+        /// itself (flagged by review on the pull request, #40).
+        /// </summary>
+        private bool _lastCommandRoverWasSilent;
 
         /// <summary>
         /// Whether the given vehicle should be treated as holding a stop, for
@@ -76,22 +95,36 @@ namespace RoverRally.Core.Control
 
         /// <summary>
         /// Whether a vehicle-reported stop justifies adopting it right now -
-        /// the #37 guard, made safe against the race above. A silent vehicle
-        /// always qualifies, no matter how long ago this controller last
-        /// transmitted: a vehicle that has stopped talking to the station
-        /// entirely must be treated as stopped regardless of timing. A vehicle
-        /// that IS reporting only qualifies if the frame it reported in is at
-        /// least as new as this controller's own last transmission - a frame
-        /// from before that transmission cannot yet confirm or deny what the
-        /// station just told the vehicle, and trusting it anyway is exactly
-        /// what let a re-arm relatch itself one tick later, before telemetry
-        /// had any chance to catch up.
+        /// the #37 guard, made safe against the race above. A vehicle that IS
+        /// reporting only has its freshness questioned when it is the SAME
+        /// vehicle this controller most recently addressed - only then can a
+        /// frame possibly predate our own last transmission to it. A
+        /// different vehicle was not the recipient of that transmission, so
+        /// there is nothing of ours for its telemetry to be stale relative to;
+        /// gating it on a timestamp that belongs to some other rover's tick is
+        /// exactly what let selecting rover A right after commanding rover B
+        /// suppress a stop A was genuinely reporting.
+        ///
+        /// Silence gets the same same-rover exemption, for the same reason,
+        /// via <see cref="_lastCommandRoverWasSilent"/>: a vehicle that has
+        /// stopped talking to the station entirely must be treated as stopped
+        /// - but only the first time that silence is seen. Once an operator
+        /// has explicitly re-armed through this exact gate, the silence
+        /// hasn't changed and isn't new evidence, so it must not keep
+        /// re-latching the stop it was just told to clear (#40) - that is
+        /// different from a vehicle that WAS reporting and then goes silent
+        /// mid-drive, which is new information and must still latch.
         /// </summary>
-        private bool ShouldAdoptAVehicleReportedStop(bool isEmergencyStopped, DateTime lastFrameUtc, DateTime nowUtc)
+        private bool ShouldAdoptAVehicleReportedStop(byte roverId, bool isEmergencyStopped, DateTime lastFrameUtc, DateTime nowUtc)
         {
-            if (IsSilent(lastFrameUtc, nowUtc)) return true;
+            bool silent = IsSilent(lastFrameUtc, nowUtc);
 
-            return isEmergencyStopped && lastFrameUtc >= _lastCommandUtc;
+            if (_lastCommandRoverId == roverId && silent) return !_lastCommandRoverWasSilent;
+            if (silent) return true;
+            if (!isEmergencyStopped) return false;
+            if (_lastCommandRoverId != roverId) return true;
+
+            return lastFrameUtc >= _lastCommandUtc;
         }
 
         /// <summary>Armed state as transmitted. Never true while a stop is latched.</summary>
@@ -113,25 +146,29 @@ namespace RoverRally.Core.Control
         /// live control input alongside a stop is not worth putting on the
         /// wire at all.
         ///
-        /// <paramref name="isEmergencyStopped"/> and <paramref name="lastFrameUtc"/>
-        /// are the selected vehicle's own latest telemetry - the guard against
-        /// #37. If it reports a stop this latch doesn't know about, adopt it
-        /// before deciding what to send, rather than transmitting the
-        /// emergencyStop:false that used to clear a stop nobody asked to
-        /// clear. <paramref name="nowUtc"/> is the caller's clock, passed in
-        /// rather than read here so the decision stays a pure function of its
-        /// inputs and testable without a real clock.
+        /// <paramref name="roverId"/> identifies which vehicle this tick is
+        /// about to command. <paramref name="isEmergencyStopped"/> and
+        /// <paramref name="lastFrameUtc"/> are that vehicle's own latest
+        /// telemetry - the guard against #37. If it reports a stop this latch
+        /// doesn't know about, adopt it before deciding what to send, rather
+        /// than transmitting the emergencyStop:false that used to clear a
+        /// stop nobody asked to clear. <paramref name="nowUtc"/> is the
+        /// caller's clock, passed in rather than read here so the decision
+        /// stays a pure function of its inputs and testable without a real
+        /// clock.
         /// </summary>
-        public StationCommand NextDriveCommand(bool isEmergencyStopped, DateTime lastFrameUtc, DateTime nowUtc,
+        public StationCommand NextDriveCommand(byte roverId, bool isEmergencyStopped, DateTime lastFrameUtc, DateTime nowUtc,
                                                short throttle, short steering)
         {
-            if (!_emergencyStopLatched && ShouldAdoptAVehicleReportedStop(isEmergencyStopped, lastFrameUtc, nowUtc))
+            if (!_emergencyStopLatched && ShouldAdoptAVehicleReportedStop(roverId, isEmergencyStopped, lastFrameUtc, nowUtc))
             {
                 _emergencyStopLatched = true;
                 _armed = false;
             }
 
             _lastCommandUtc = nowUtc;
+            _lastCommandRoverId = roverId;
+            _lastCommandRoverWasSilent = IsSilent(lastFrameUtc, nowUtc);
 
             if (_emergencyStopLatched)
             {
@@ -163,6 +200,7 @@ namespace RoverRally.Core.Control
         /// the button is standing on the track, and releasing the stop into a
         /// raised slider drives the vehicle straight at them.
         ///
+        /// <paramref name="roverId"/> identifies the vehicle being armed.
         /// <paramref name="isEmergencyStopped"/> and <paramref name="lastFrameUtc"/>
         /// adopt a stop the vehicle is holding but this latch does not know
         /// about (a station restart, or a vehicle selected for the first
@@ -170,16 +208,18 @@ namespace RoverRally.Core.Control
         /// the same throttle-centred gate as any other re-arm rather than
         /// being waved through silently.
         /// </summary>
-        public bool TryToggleArm(bool isEmergencyStopped, DateTime lastFrameUtc, DateTime nowUtc,
+        public bool TryToggleArm(byte roverId, bool isEmergencyStopped, DateTime lastFrameUtc, DateTime nowUtc,
                                  short throttle, out StationCommand command)
         {
-            if (!_emergencyStopLatched && ShouldAdoptAVehicleReportedStop(isEmergencyStopped, lastFrameUtc, nowUtc))
+            if (!_emergencyStopLatched && ShouldAdoptAVehicleReportedStop(roverId, isEmergencyStopped, lastFrameUtc, nowUtc))
             {
                 _emergencyStopLatched = true;
                 _armed = false;
             }
 
             _lastCommandUtc = nowUtc;
+            _lastCommandRoverId = roverId;
+            _lastCommandRoverWasSilent = IsSilent(lastFrameUtc, nowUtc);
 
             bool arming = !_armed;
 
