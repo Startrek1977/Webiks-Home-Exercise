@@ -17,25 +17,25 @@ namespace RoverRally.Tests
         [TestMethod]
         public void ReportsZeroPercentForAFlatPack()
         {
-            Assert.AreEqual(0, BatteryGauge.ToPercent(9000));
+            Assert.AreEqual(0, BatteryGauge.ToPercent(BatteryGauge.EmptyMilliVolts));
         }
 
         [TestMethod]
         public void ReportsOneHundredPercentForAFullPack()
         {
-            Assert.AreEqual(100, BatteryGauge.ToPercent(12600));
+            Assert.AreEqual(100, BatteryGauge.ToPercent(BatteryGauge.FullMilliVolts));
         }
 
         [TestMethod]
         public void ClampsToZeroBelowEmpty()
         {
-            Assert.AreEqual(0, BatteryGauge.ToPercent(8900));
+            Assert.AreEqual(0, BatteryGauge.ToPercent(BatteryGauge.EmptyMilliVolts - 100));
         }
 
         [TestMethod]
         public void ClampsToOneHundredAboveFull()
         {
-            Assert.AreEqual(100, BatteryGauge.ToPercent(13000));
+            Assert.AreEqual(100, BatteryGauge.ToPercent(BatteryGauge.FullMilliVolts + 400));
         }
 
         [TestMethod]
@@ -47,7 +47,7 @@ namespace RoverRally.Tests
         [TestMethod]
         public void IsCriticalFiresForANearlyFlatPack()
         {
-            Assert.IsTrue(BatteryGauge.IsCritical(9200));
+            Assert.IsTrue(BatteryGauge.IsCritical(BatteryGauge.EmptyMilliVolts + 200));
         }
 
         [TestMethod]

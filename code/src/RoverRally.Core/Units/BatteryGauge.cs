@@ -13,7 +13,7 @@ namespace RoverRally.Core.Units
         /// <summary>
         /// A pack at or below <see cref="EmptyMilliVolts"/> - including a
         /// failed sensor reporting 0 mV - clamps to 0, not a wrapped-around
-        /// positive number. Never let this report a healthy pack as flat.
+        /// positive number. Never let this report a flat pack as healthy.
         /// </summary>
         public static int ToPercent(int milliVolts)
         {
