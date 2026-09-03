@@ -107,6 +107,36 @@ namespace RoverRally.Tests
         }
 
         [TestMethod]
+        public void AppendWritesTheReservedGapAsZero()
+        {
+            // Bytes 4-7 of every record are the reserved slot where the vendor
+            // SDK's IntPtr session handle used to live; nothing should ever
+            // write anything there again.
+            SessionCacheRecord record = new SessionCacheRecord();
+            record.RoverId = -1;
+            record.StartedUtcTicks = -1;
+            record.EndedUtcTicks = -1;
+            record.DistanceCm = -1;
+            record.PeakSpeedCmS = -1;
+
+            string path = TempCachePath();
+            try
+            {
+                SessionCacheFile.Append(path, record);
+                byte[] raw = File.ReadAllBytes(path);
+
+                Assert.AreEqual((byte)0, raw[4]);
+                Assert.AreEqual((byte)0, raw[5]);
+                Assert.AreEqual((byte)0, raw[6]);
+                Assert.AreEqual((byte)0, raw[7]);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
         public void ReadReturnsEmptyListWhenFileIsMissing()
         {
             IList<SessionCacheRecord> records = SessionCacheFile.Read(TempCachePath());

@@ -40,6 +40,15 @@ namespace RoverRally.Core.Session
 
             byte[] raw = File.ReadAllBytes(path);
             int count = raw.Length / RecordSize;
+            int trailingBytes = raw.Length % RecordSize;
+
+            if (trailingBytes != 0)
+            {
+                Log.Warn(string.Format(
+                    "Session cache at {0} is {1} byte(s) short of a whole number of {2}-byte records; "
+                    + "the trailing {1} byte(s) look truncated or corrupted and are being discarded.",
+                    path, trailingBytes, RecordSize));
+            }
 
             for (int i = 0; i < count; i++)
             {
