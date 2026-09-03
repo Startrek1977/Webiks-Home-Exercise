@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using RoverRally.Core.Telemetry;
 
 namespace RoverRally.Core.Models
 {
@@ -115,6 +116,38 @@ namespace RoverRally.Core.Models
         {
             get { return _lastSequence; }
             set { _lastSequence = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// Applies a decoded telemetry frame to this rover's live state.
+        /// <see cref="TelemetryFrame.HasGpsFix"/> gates <see cref="Position"/>
+        /// only - when the receiver has no fix the protocol zeroes the
+        /// latitude and longitude fields, so that reading is not a position
+        /// and the last known one is kept. Every other field is still valid
+        /// on a no-fix frame and is applied unconditionally.
+        /// </summary>
+        public void ApplyFrame(TelemetryFrame frame, DateTime receivedUtc)
+        {
+            if (frame.HasGpsFix)
+            {
+                Position = new TrackPoint(frame.LatitudeE7 / 1e7, frame.LongitudeE7 / 1e7);
+            }
+
+            Heading = frame.HeadingDeci / 10.0;
+            SpeedCmS = frame.SpeedCmS;
+            BatteryMilliVolts = frame.BatteryMilliVolts;
+            SignalPercent = frame.SignalPercent;
+            MotorTemperatureC = frame.MotorTempDeciC / 10.0;
+            TiltDegrees = frame.TiltDeciDeg / 10.0;
+            LastFrameUtc = receivedUtc;
+            LastSequence = frame.Sequence;
+            IsArmed = frame.IsArmed;
+            IsEmergencyStopped = frame.IsEmergencyStopped;
+
+            if (frame.IsEmergencyStopped) Status = RoverStatus.Stopped;
+            else if (frame.IsCharging) Status = RoverStatus.Charging;
+            else if (frame.SpeedCmS > 0) Status = RoverStatus.Driving;
+            else Status = RoverStatus.Idle;
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

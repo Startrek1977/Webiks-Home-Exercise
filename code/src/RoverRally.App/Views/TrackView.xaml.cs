@@ -63,6 +63,10 @@ namespace RoverRally.App.Views
             double x, y;
             bool onTrack = _projection.TryProject(rover.Position, out x, out y);
 
+            // A rover that has driven off the surveyed area still reports, but
+            // there is nowhere sensible to put the marker - or the trail.
+            if (!onTrack) return;
+
             Polyline trail = GetTrail(rover);
             trail.Points.Add(new Point(x, y));
 
@@ -70,10 +74,6 @@ namespace RoverRally.App.Views
             {
                 trail.Points.RemoveAt(0);
             }
-
-            // A rover that has driven off the surveyed area still reports, but
-            // there is nowhere sensible to put the marker.
-            if (!onTrack) return;
 
             Ellipse marker = GetMarker(rover);
             Canvas.SetLeft(marker, x - marker.Width / 2);
