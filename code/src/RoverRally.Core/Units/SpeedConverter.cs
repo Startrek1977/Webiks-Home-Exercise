@@ -1,5 +1,3 @@
-using System;
-
 namespace RoverRally.Core.Units
 {
     public enum SpeedUnit
@@ -34,7 +32,7 @@ namespace RoverRally.Core.Units
 
             if (unit == SpeedUnit.MilesPerHour)
             {
-                return string.Format("{0:0.0} mph", ToMilesPerHour((int)Math.Round(kmh)));
+                return string.Format("{0:0.0} mph", ToMilesPerHour(centimetresPerSecond));
             }
 
             return string.Format("{0:0.0} km/h", kmh);

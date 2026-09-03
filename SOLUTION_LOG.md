@@ -149,7 +149,7 @@ This landed on net48 and needed no retargeting, which is why it went first.
 |---|---|---|
 | Emergency stop | The station never re-asserted the stop. `MainWindow._emergencyStopLatched` was assigned and never read (CS0414), and `DriveTimer_Tick` hard-coded `emergencyStop: false` every 200ms. The vehicle is level-triggered - `RoverSim.Apply` overwrites its held flag from each frame - so the latch survived exactly one tick. Intermittent because `EmergencyStop_Click` transmitted `armed: false` without clearing the local `_armed`, so the next tick sent stale armed plus whatever the throttle slider read | Moved the latch into a `DriveController` in Core, which every tick consults; engaging the stop also disarms locally, and only an explicit re-arm clears it. Also removed the `IsReconnecting` guard that could refuse to send the stop at all |
 | Battery readout | `BatteryGauge.ToPercent` subtracted `EmptyMilliVolts` and cast the difference to `ushort` before scaling. Any pack at or below 9.0V - including a failed sensor reporting 0 mV, which is the simulator's own failure sentinel - produced a negative difference that wrapped to a huge positive `ushort`, which the existing high-side clamp then capped at 100%. `IsCritical` just calls `ToPercent`, so the low-battery check inherited the same blind spot and could never fire for a flat pack | Kept the subtraction as signed `int` and clamped the result to `0..100` on both ends instead of only the top. A pack below empty, or a 0 mV failed-sensor reading, now reads 0% instead of wrapping past it - no special-casing the sensor failure separately, since it's just the most extreme case of "below empty" |
-| Imperial speed | | |
+| Imperial speed | `SpeedConverter.Format` converted cm/s to km/h, rounded that km/h value down to an `int`, and then fed it straight back into `ToMilesPerHour` - a method whose own parameter is cm/s, not km/h. The cm/s-to-km/h factor was effectively applied a second time to a number that was already km/h, and the intermediate rounding threw away precision before that second, bogus conversion ran. For 500 cm/s (18.0 km/h, which should read 11.2 mph) it reported 0.4 mph - about a twentieth of the real speed, matching what the visiting engineer clocked | `ToMilesPerHour` is now called directly on the original cm/s input instead of the already-converted km/h value, and the `Math.Round` round-trip through `int` is gone - the exact cm/s figure feeds the conversion, and display rounding happens once, at the very end, the same way the km/h branch already worked |
 
 ### Anything else you found
 
@@ -466,6 +466,18 @@ both `SpeedConverterTests` pass; `TrackProjectionTests.PlacesTheStartLine` was
 already skipped and still is. The `SpeedConverter` test that encodes the imperial
 bug, and that skipped test, each have their own issue - changing them here would
 have mixed unrelated work into a codec change.
+
+`SpeedConverterTests.FormatsCruiseSpeedForTheImperialReadout` was that test, and
+its own issue (#3) is now closed. Its assertion of `"0.4 mph"` for 500 cm/s was
+not a false negative slipping past real coverage - it was the coverage,
+correctly reporting the code it was written against. Fixing the bug meant
+fixing the test's expectation to `"11.2 mph"` in the same change; leaving it
+asserting the old value would have turned a real regression test into a
+guaranteed failure the moment the bug was fixed. I added zero-speed and
+maximum-controller-speed cases alongside it (0 cm/s and `ushort.MaxValue`
+65535 cm/s, the ceiling of the protocol's `uint16` ground-speed field), each in
+both units, so the imperial and metric readouts are pinned against each other
+at the boundaries and not just at one mid-range value.
 
 ---
 
