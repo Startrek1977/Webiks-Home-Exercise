@@ -28,14 +28,12 @@ namespace RoverRally.Core.Units
 
         public static string Format(int centimetresPerSecond, SpeedUnit unit)
         {
-            double kmh = ToKilometresPerHour(centimetresPerSecond);
-
             if (unit == SpeedUnit.MilesPerHour)
             {
                 return string.Format("{0:0.0} mph", ToMilesPerHour(centimetresPerSecond));
             }
 
-            return string.Format("{0:0.0} km/h", kmh);
+            return string.Format("{0:0.0} km/h", ToKilometresPerHour(centimetresPerSecond));
         }
     }
 }
