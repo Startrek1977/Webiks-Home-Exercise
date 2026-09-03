@@ -87,6 +87,27 @@ evaluation), not this one. Nothing depends on Core's literal output path yet,
 so it's silent rather than broken, but it's real drift from the old-style
 behaviour and worth folding into whichever issue next touches that file.
 
+Codex's review on the PR caught that my first fix was still fragile: I had
+conditioned `OutputPath` on `'$(Configuration)|$(Platform)' == 'Debug|x86'`,
+which matches when the project builds through the `.sln` (which supplies
+`Platform=x86`) but silently stops matching — falling back to the SDK's
+default `bin\x86\$(Configuration)\` — for anyone who builds
+`RoverRally.App.csproj` directly without also passing `-p:Platform=x86` by
+hand. I reproduced the standalone-build scenario four ways (bare `msbuild`,
+`-p:Platform=AnyCPU`, `-p:Platform=x86`, and `dotnet build`) before touching
+anything: three of the four already landed at `bin\Debug\` correctly, and
+adding an old-style-style `<Platform Condition="'$(Platform)'==''">x86</Platform>`
+default — the obvious first fix — measurably did nothing, because the SDK's
+own implicit top import sets `$(Platform)` to `AnyCPU` before this file's own
+`PropertyGroup` ever runs, unlike old-style csproj where the user's
+`PropertyGroup` was the first thing evaluated. The real fix was smaller than
+the review implied a fix should be: `OutputPath`, `DebugType`, and `Optimize`
+never actually needed to depend on `$(Platform)` at all, since `PlatformTarget`
+is already unconditioned — so I dropped `$(Platform)` from all three
+conditions and keyed them on `$(Configuration)` alone. Verified `OutputPath`
+evaluates to the same `bin\Debug\`/`bin\Release\` regardless of whether
+`$(Platform)` is unset, `AnyCPU`, or `x86`.
+
 ### Moving to 64-bit
 
 *What did 64-bit break that .NET 8 on its own did not? How did you find it?*
