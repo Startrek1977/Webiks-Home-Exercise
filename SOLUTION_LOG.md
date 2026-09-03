@@ -56,9 +56,18 @@ work not yet started.*
 
 | Project | What you changed |
 |---|---|
-| `RoverRally.Core` | |
+| `RoverRally.Core` | Converted to SDK-style (`Microsoft.NET.Sdk`), still net48/x86 (#12). `packages.config` → `PackageReference` for Newtonsoft.Json 6.0.8; dropped the explicit `System`/`System.Core` references, which the SDK supplies implicitly for net48 — everything else (`System.Configuration`, `System.Runtime.Remoting`, `System.Xml`, `System.Xml.Linq`) stayed explicit, since only those two are implicit outside `netcoreapp`/`net5+`; set `GenerateAssemblyInfo=false` rather than delete `AssemblyInfo.cs`, which still carries the real title/company/version metadata. No `Compile` items needed listing — the implicit glob reproduces the existing 24 files exactly. |
 | `RoverRally.App` | |
 | `RoverRally.Tests` | |
+
+Splitting the format conversion out from the retarget (#12 before #15) paid for
+itself immediately: restoring via `PackageReference` for the first time pulled
+in NuGet's audit check, which `packages.config` restore never runs, and it
+flagged the same Newtonsoft.Json CVE the brief already defers to #18 as a
+brand-new `NU1903` warning — a warning that had nothing to do with the
+framework move and everything to do with the file format change. I suppressed
+just that one advisory rather than let it slip in as unexplained noise, since
+the CVE itself is still deliberately unfixed.
 
 ### Moving to 64-bit
 
