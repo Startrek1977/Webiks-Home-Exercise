@@ -125,9 +125,6 @@ watch a run without anyone standing at the station PC. The endpoint is set with
 the `StationMonitorEndpoint` and `StationMonitorPort` values in the station
 configuration; the office client needs both, plus the station PC's hostname.
 
-Post-run analyzers dropped into the `Analyzers` folder are picked up
-automatically and run against the captured session at the end of each run.
-
 ---
 
 ## Logs
