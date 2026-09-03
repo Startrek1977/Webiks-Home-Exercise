@@ -302,6 +302,66 @@ This landed on net48 and needed no retargeting, which is why it went first.
    change fixes is that whichever position a verdict is based on, it is now
    always the position - and the rover - it was actually asked about.
 
+5. **A no-fix frame moved the rover, then blamed it for leaving the fence
+   (#36).** Not something Dana flagged - I found it running the station
+   against the simulator to verify #20, and #4's own verification harness
+   had already surfaced the other half of it in passing (see above).
+   `docs/rover-link-protocol.md` is explicit that a no-fix frame's
+   latitude and longitude are zeroed and are not a position, but nothing in
+   the station read `TelemetryFrame.HasGpsFix` - only three
+   `FrameCodecTests` cases did - so `MainWindow.ApplyFrame` took the
+   zeroed reading at face value. The simulator drops the fix for each
+   rover on its own schedule, `tick % 40 == rover.Id`, once every 8 seconds
+   at 5Hz; `(0,0)` is the Gulf of Guinea, well outside the surveyed track,
+   so every rover raised "has left the fenced area" on its own cycle
+   regardless of where it actually was - a warning that meant nothing,
+   indistinguishable in the log from one that did. `TrackView.UpdateRover`
+   made the visible half worse: it already worked out the projected point
+   was off-canvas and skipped the marker, label, and heading for it, but
+   appended the point to the trail `Polyline` before that guard, so the bad
+   sample still drew a line from the marker's real position down to the
+   bottom-left corner of the map on every cycle.
+
+   `RoverRally.Tests` has no reference to `RoverRally.App` - the same
+   constraint the `DriveController` extraction in #20 ran into - so the
+   decision of whether a frame gets to move the rover had to live
+   somewhere testable. I moved the field-application block out of
+   `MainWindow.ApplyFrame` and into `Rover.ApplyFrame(frame, receivedUtc)`
+   in Core: every field applies unconditionally except `Position`, which
+   only updates when `frame.HasGpsFix`. `MainWindow.ApplyFrame` now calls
+   that and skips the geofence check entirely for a no-fix frame, instead
+   of judging a reading that isn't a position - it leaves the last verdict
+   standing rather than guessing. `TrackView.UpdateRover` got the one-line
+   fix the issue asked for: the on-canvas guard now runs before the trail
+   gets a new point, not after.
+
+   `RoverTests` covers the scenario the issue asked for directly: a good
+   frame, a no-fix frame, and a second good frame in sequence, asserting
+   the rover's position holds through the middle frame and resumes moving
+   on the third, plus that everything else a no-fix frame carries (speed,
+   heading, battery, status) still lands. I checked the tests were worth
+   having by reverting the `HasGpsFix` gate and rebuilding: the two tests
+   that exercise a no-fix frame both went red, on exactly the assertion
+   that matters - the rover jumped to `(0,0)` instead of holding still.
+   Verified against the running simulator too, station stdout redirected
+   to a file rather than the throwaway harness #4 needed: watched the
+   Track tab and the log across several 8-second cycles for every rover,
+   with no fence warnings and no trail excursions, only the marker sitting
+   still on a fix-less tick and picking back up on the next one.
+
+   A Codex review on the pull request found the gap the simulator's own
+   pattern - one isolated no-fix frame at a time - couldn't surface:
+   `MainWindow.ApplyFrame` was still calling `Track.UpdateRover`
+   unconditionally, and since `Rover.ApplyFrame` leaves `Position` at its
+   last known value on a no-fix frame, that call just re-appended the same
+   retained point to the trail on every no-fix tick. One point is
+   invisible; a real outage lasting long enough - 300 consecutive no-fix
+   frames, a minute at 5Hz - would fill the whole `TrailLength` buffer
+   with copies of a stale point and evict the genuine route underneath it.
+   `Track.UpdateRover` now runs inside the same `frame.HasGpsFix` gate as
+   the geofence check: a no-fix frame draws nothing, exactly as it judges
+   nothing.
+
 ---
 
 ## What You Removed
@@ -346,6 +406,14 @@ originally checked the invariant only at the end of a sequence, and passed again
 the broken code, because a controller that forgets to disarm on the stop and then
 disarms on the next button press reaches the same final state - by a route that
 would have driven the vehicle away in between. It now asserts after every step.
+
+`RoverTests` (#36) is the same move again, for the same reason: whether a
+telemetry frame gets to move a rover on the map is a decision, and it lived in
+`MainWindow.ApplyFrame` where nothing in `RoverRally.Tests` could reach it. It
+now lives in `Rover.ApplyFrame`, a plain method on the model that already owns
+the state it mutates, and four tests pin down the one case that matters - a
+no-fix frame between two good ones must not move the rover, but must still
+apply everything else it carries.
 
 Unit tests could not settle the last question, though, because the failure is a
 property of a conversation over time rather than of a function. So there is also

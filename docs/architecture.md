@@ -1,7 +1,7 @@
 # RoverRally Station — Architecture Notes
 
 **Last substantially updated:** June 2020 (ports and framework notes touched up
-2022; telemetry codec and emergency stop latch 2026)
+2022; telemetry codec, emergency stop latch and no-fix frame handling 2026)
 
 ---
 
@@ -92,6 +92,7 @@ the mechanism.
 - The window does more than a window should. Pulling the drive logic out had
   been on the list since 2020; the armed and emergency-stop state came out in
   #20 and now lives in `Core/Control/DriveController`, which is what made it
-  testable. Frame handling, geofence alerting and the link lifecycle are still
-  in the code-behind.
+  testable. Applying a decoded frame's fields to the rover model came out in
+  #36 the same way, into `Core/Models/Rover.ApplyFrame`. Geofence alerting and
+  the link lifecycle are still in the code-behind.
 - There is no logging to disk from the application itself.

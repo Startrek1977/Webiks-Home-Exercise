@@ -183,35 +183,30 @@ namespace RoverRally.App
             Rover rover = _vm.Rovers.FirstOrDefault(r => r.Id == frame.RoverId);
             if (rover == null) return;
 
-            rover.Position = new TrackPoint(frame.LatitudeE7 / 1e7, frame.LongitudeE7 / 1e7);
-            rover.Heading = frame.HeadingDeci / 10.0;
-            rover.SpeedCmS = frame.SpeedCmS;
-            rover.BatteryMilliVolts = frame.BatteryMilliVolts;
-            rover.SignalPercent = frame.SignalPercent;
-            rover.MotorTemperatureC = frame.MotorTempDeciC / 10.0;
-            rover.TiltDegrees = frame.TiltDeciDeg / 10.0;
-            rover.LastFrameUtc = receivedUtc;
-            rover.LastSequence = frame.Sequence;
-            rover.IsArmed = frame.IsArmed;
-            rover.IsEmergencyStopped = frame.IsEmergencyStopped;
+            rover.ApplyFrame(frame, receivedUtc);
 
-            if (frame.IsEmergencyStopped) rover.Status = RoverStatus.Stopped;
-            else if (frame.IsCharging) rover.Status = RoverStatus.Charging;
-            else if (frame.SpeedCmS > 0) rover.Status = RoverStatus.Driving;
-            else rover.Status = RoverStatus.Idle;
-
-            Track.UpdateRover(rover);
-
-            if (_geofence.IsOutside(rover.Id, rover.Position))
+            // A no-fix frame carries no position (the protocol zeroes it) and
+            // Rover.ApplyFrame leaves Position at its last known value, so
+            // there is nothing new here to draw or to judge the fence
+            // against. Calling Track.UpdateRover anyway would just
+            // re-append that same retained point to the trail on every
+            // no-fix tick, which - given enough of them in a row - evicts
+            // real history with copies of a stale point.
+            if (frame.HasGpsFix)
             {
-                if (_fencedAlerted.Add(rover.Id))
+                Track.UpdateRover(rover);
+
+                if (_geofence.IsOutside(rover.Id, rover.Position))
                 {
-                    Log.Warn(rover.Name + " has left the fenced area.");
+                    if (_fencedAlerted.Add(rover.Id))
+                    {
+                        Log.Warn(rover.Name + " has left the fenced area.");
+                    }
                 }
-            }
-            else
-            {
-                _fencedAlerted.Remove(rover.Id);
+                else
+                {
+                    _fencedAlerted.Remove(rover.Id);
+                }
             }
 
             _frameCount++;
