@@ -58,7 +58,7 @@ work not yet started.*
 |---|---|
 | `RoverRally.Core` | Converted to SDK-style (`Microsoft.NET.Sdk`), still net48/x86 (#12). `packages.config` → `PackageReference` for Newtonsoft.Json 6.0.8; dropped the explicit `System`/`System.Core` references, which the SDK supplies implicitly for net48 — everything else (`System.Configuration`, `System.Runtime.Remoting`, `System.Xml`, `System.Xml.Linq`) stayed explicit, since only those two are implicit outside `netcoreapp`/`net5+`; set `GenerateAssemblyInfo=false` rather than delete `AssemblyInfo.cs`, which still carries the real title/company/version metadata. No `Compile` items needed listing — the implicit glob reproduces the existing 24 files exactly. |
 | `RoverRally.App` | Same treatment, still net48/x86 (#13). `UseWPF=true` replaced the four explicit `PresentationCore`/`PresentationFramework`/`WindowsBase`/`System.Xaml` references and took over globbing the XAML — `App.xaml` as `ApplicationDefinition`, the rest as `Page` — so the old `ApplicationDefinition`/`Page`/`Compile` item list came out entirely rather than being converted line by line. Kept `AssemblyName=RoverRally.Station` explicit, since SDK-style otherwise derives it from the project file name (`RoverRally.App`) and every doc in the repo names the exe by the old name. `Data\rovers.json` and `Data\session-cache.bin` moved from `<None Include>` to `<None Update>`, since the SDK's own default glob already picks up any non-code file as `None` — `Include`-ing them again is a duplicate-item error. |
-| `RoverRally.Tests` | |
+| `RoverRally.Tests` | Converted to SDK-style (`Microsoft.NET.Sdk`), still net48/x86 (#14) - the third and last project in the solution to move off the old format. `packages.config` → `PackageReference`, upgrading `MSTest.TestFramework`/`MSTest.TestAdapter` from 2.2.10 to 4.4.0 and adding `Microsoft.NET.Test.Sdk` 18.9.0, which `dotnet test` needs and `packages.config` restore never provided - this is also why `dotnet test` could not run the suite at all before this issue, not just why it needed extra flags. Dropped the explicit `<Compile Include>` list (the implicit glob reproduces the existing ten files exactly) and the `ProjectTypeGuids` test-project marker; kept `Properties/AssemblyInfo.cs` with `GenerateAssemblyInfo=false` rather than delete it, matching Core and App instead of the issue's literal wording. |
 
 Splitting the format conversion out from the retarget (#12 before #15) paid for
 itself immediately: restoring via `PackageReference` for the first time pulled
@@ -107,6 +107,40 @@ is already unconditioned — so I dropped `$(Platform)` from all three
 conditions and keyed them on `$(Configuration)` alone. Verified `OutputPath`
 evaluates to the same `bin\Debug\`/`bin\Release\` regardless of whether
 `$(Platform)` is unset, `AnyCPU`, or `x86`.
+
+The issue's own baseline - "4 tests - 3 passed, 1 skipped" - was stale by the
+time I got to it, predating `BatteryGaugeTests`, `DriveControllerTests`,
+`FrameCodecTests`, `GeofenceMonitorTests`, `RoverTests` and
+`TelemetryReceivedEventArgsTests`, all added by issues that landed in between.
+I did not take the number in the issue on trust: I stashed the conversion,
+rebuilt the original `packages.config` project from a clean `bin`/`obj`, and
+ran the documented `vstest.console.exe` command against it to get the real
+baseline first - 77 tests, 76 passed, 1 skipped. Only then did I pop the stash
+and confirm `dotnet test` reproduced that exactly, with nothing silently
+dropped.
+
+The one piece of this that could not be purely mechanical: `MSTest.TestFramework`
+4.x removed `ExpectedExceptionAttribute` outright, and there is no version past
+2.2.10 that keeps it, so "upgrade MSTest" and "no source changes" were not both
+achievable. The six tests in `Crc8Tests` asserting an exception type moved to
+`Assert.ThrowsExactly<TException>(() => ...)`, which has the same
+exact-type-only semantics `ExpectedException` had by default - same coverage,
+same pass/fail behaviour, current API.
+
+Copilot's review on the PR caught that I had left `RoverRally.Tests.csproj`
+with the same gap App's own PR had already found and fixed: the Debug/Release
+`PropertyGroup`s were conditioned on `'$(Configuration)|$(Platform)' ==
+'Debug|x86'`, and `OutputPath` was left unpinned, so `dotnet test` run
+directly against the `.csproj` - which leaves `$(Platform)` at its `AnyCPU`
+default - silently landed at `bin\Debug\` with `DebugType=portable`, while
+building through the `.sln` landed at `bin\x86\Debug\` with
+`DebugType=full`. I reproduced both before touching anything, with
+`-getProperty` rather than eyeballing the build log, then applied the exact
+fix App already carries: pin `OutputPath` to `bin\$(Configuration)\` and key
+the conditions on `$(Configuration)` alone. Verified both entry points now
+evaluate identically for Debug and Release. I should have copied that pattern
+onto Tests the first time, since I had already written up why App needed it a
+few paragraphs above.
 
 ### Moving to 64-bit
 

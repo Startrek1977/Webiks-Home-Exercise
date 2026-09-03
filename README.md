@@ -16,7 +16,7 @@ code/
 ## Building
 
 ```bash
-msbuild RoverRally.sln -t:restore -p:RestorePackagesConfig=true
+msbuild RoverRally.sln -t:restore
 msbuild RoverRally.sln
 ```
 
@@ -27,20 +27,12 @@ The station builds to `src/RoverRally.App/bin/Debug/RoverRally.Station.exe`.
 
 ## Tests
 
-Run from a Developer PowerShell, where `vstest.console.exe` is on the path:
-
-```powershell
-vstest.console.exe src\RoverRally.Tests\bin\Debug\RoverRally.Tests.dll /Platform:x86 /Framework:.NETFramework,Version=v4.8 /TestAdapterPath:packages\MSTest.TestAdapter.2.2.10\build\_common
+```bash
+dotnet test src/RoverRally.Tests/RoverRally.Tests.csproj
 ```
 
-`/TestAdapterPath` is not optional. This is a `packages.config` project, so the
-MSTest adapter is never copied next to the test assembly, and without it
-`vstest.console` reports "No test is available" rather than an error — which
-looks like a broken test project. The adapter lives in `build\_common`, not
-`build\net46`.
-
-Add `/Tests:SomeTestMethod` to run a single test, or
-`/TestCaseFilter:"FullyQualifiedName~Crc8Tests"` for one class.
+Add `--filter "FullyQualifiedName~Crc8Tests"` to run one class, or
+`--filter "FullyQualifiedName~Crc8Tests.SomeTestMethod"` for a single test.
 
 `TrackProjectionTests.PlacesTheStartLine` is skipped and always has been.
 Anything else red or skipped is a regression.
