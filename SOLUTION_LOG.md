@@ -127,6 +127,21 @@ achievable. The six tests in `Crc8Tests` asserting an exception type moved to
 exact-type-only semantics `ExpectedException` had by default - same coverage,
 same pass/fail behaviour, current API.
 
+Copilot's review on the PR caught that I had left `RoverRally.Tests.csproj`
+with the same gap App's own PR had already found and fixed: the Debug/Release
+`PropertyGroup`s were conditioned on `'$(Configuration)|$(Platform)' ==
+'Debug|x86'`, and `OutputPath` was left unpinned, so `dotnet test` run
+directly against the `.csproj` - which leaves `$(Platform)` at its `AnyCPU`
+default - silently landed at `bin\Debug\` with `DebugType=portable`, while
+building through the `.sln` landed at `bin\x86\Debug\` with
+`DebugType=full`. I reproduced both before touching anything, with
+`-getProperty` rather than eyeballing the build log, then applied the exact
+fix App already carries: pin `OutputPath` to `bin\$(Configuration)\` and key
+the conditions on `$(Configuration)` alone. Verified both entry points now
+evaluate identically for Debug and Release. I should have copied that pattern
+onto Tests the first time, since I had already written up why App needed it a
+few paragraphs above.
+
 ### Moving to 64-bit
 
 *What did 64-bit break that .NET 8 on its own did not? How did you find it?*
