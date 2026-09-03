@@ -146,7 +146,61 @@ few paragraphs above.
 
 *What did 64-bit break that .NET 8 on its own did not? How did you find it?*
 
+**What I found.** `Core/Session/SessionCacheRecord.cs` is a
+`[StructLayout(LayoutKind.Sequential)]` struct read and written with
+`Marshal.SizeOf`/`Marshal.PtrToStructure`/`Marshal.StructureToPtr`, and it
+carried `public IntPtr SessionHandle` - a "session handle returned by the SDK"
+that nothing downstream ever read. `IntPtr` is 4 bytes on x86 and 8 bytes on
+x64, and its alignment shifts every field that follows it, so the record's
+marshalled size is not a fixed number - it's whatever the CLR decides for the
+process that happens to be running. The shipped
+`RoverRally.App/Data/session-cache.bin` is exactly 256 bytes: I hex-dumped it
+and confirmed 8 records of 32 bytes each, which is the x86 answer. The same
+struct measures 40 bytes on x64, so `raw.Length / RecordSize` in
+`SessionCacheFile.Read` would silently yield 6 records instead of 8, and every
+field after the handle would decode from the wrong offset - a run's distance
+would read back as its peak speed, and so on. Nothing about this shows up
+until the platform actually flips to x64; on x86 - even on .NET 8 - the bug is
+invisible. That's what makes it the one migration step 64-bit forces rather
+than one .NET 8 forces on its own.
 
+I worked out the byte layout by hand before touching anything: `RoverId` at
+offset 0, the handle at offset 4 (4 bytes on x86), `StartedUtcTicks` at 8,
+`EndedUtcTicks` at 16, `DistanceCm` at 24, `PeakSpeedCmS` at 28, 32 bytes
+total. Removing the handle and letting the compiler naturally re-pad
+`StartedUtcTicks` back to its required 8-byte alignment leaves a 4-byte gap in
+exactly the same place the handle used to sit - every other field keeps its
+offset, and the total stays 32 bytes on both architectures. Compacting the
+record to 28 bytes instead would have shifted every field after `RoverId` and
+silently misparsed the 8 runs already on disk, which breaks the fleet grid
+until a real format migration lands - that's #11's job, not this one, and
+doing it here would have violated the project's always-green rule for however
+long #11 took to follow.
+
+**What I decided.** Rather than lean on that padding behaviour, I dropped
+`Marshal`/`StructLayout` from both the struct and `SessionCacheFile` entirely
+and hand-pack the record at fixed byte offsets with `BitConverter`, keeping
+offset 4 as an explicitly reserved, always-zero gap. `RecordSize` is now a
+`public const int` of `32`, not something measured from the struct's shape at
+runtime. This satisfies the issue's requirement that the format not depend on
+`Marshal.SizeOf`, while still producing byte-identical output to the old x86
+layout, so the shipped cache file needed no migration for this issue.
+
+**How I verified it.** A golden-byte test (`SessionCacheFileTests`) copies the
+real 256 bytes of the shipped `session-cache.bin` into the test - not
+reconstructed from the struct, so a transcription bug in the packing logic
+can't hide from it the way a self-generated fixture could - and asserts all 8
+records decode to the exact `RoverId`, `StartedUtcTicks`, `EndedUtcTicks`,
+`DistanceCm` and `PeakSpeedCmS` values I computed independently with
+PowerShell's `BitConverter`, not by re-deriving the C# packing code. A
+separate round-trip test writes and reads back a record with distinct values
+for every field. Then, because a passing unit test doesn't prove the real
+application wires things together correctly, I ran the actual station against
+the actual shipped cache file: `RoverRally.Station.exe`, launched from a
+console so its `Log.Info` calls were visible, logged
+`Loaded 8 run(s) from the session cache.` - the same count as before the
+change, through the real `MainWindow.LoadSessionHistory` → `SessionCacheFile.Read`
+path, not a test double.
 
 ---
 

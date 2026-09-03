@@ -57,7 +57,10 @@ reimplementation in `RoverRally.Core.Telemetry`. We own the RL-100 codec now;
 
 The session cache is a flat binary file rather than a database because the
 station has to work on a laptop in a tent with nothing installed on it. The
-record layout mirrors the vendor's session block so the two stay interchangeable.
+record is a fixed 32-byte, fixed-offset layout (`SessionCacheFile.RecordSize`)
+that is the same on x86 and x64 - it no longer depends on marshalling a struct,
+which is what let a vendor SDK pointer field silently change the on-disk size
+by platform (see "Moving to 64-bit" in `SOLUTION_LOG.md`).
 
 ---
 
