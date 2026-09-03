@@ -543,7 +543,7 @@ and I checked the build output confirms neither. `App.config` loses the
 `StationMonitorEndpoint`/`StationMonitorPort` keys and the comment that came
 with them; `SettingsView` loses the "Overview endpoint" row and the display
 line that read those two keys into it, which was the only code anywhere that
-touched them. `docs/operations-guide.md`'s "Remote monitoring" section and the
+touched them. (This supersedes earlier citations in this section to `App.config:18-20` / `SettingsView.xaml.cs:31-32` and the migration-table entry that listed `System.Runtime.Remoting` as still explicit.) `docs/operations-guide.md`'s "Remote monitoring" section and the
 "office overview client" mention in `docs/architecture.md`'s history line are
 gone too, for the reason the spike gave: the docs described a feature that
 had exactly one caller, and that caller printed two config values to a
