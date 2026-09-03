@@ -56,7 +56,7 @@ work not yet started.*
 
 | Project | What you changed |
 |---|---|
-| `RoverRally.Core` | Converted to SDK-style (`Microsoft.NET.Sdk`), still net48/x86 (#12). `packages.config` → `PackageReference` for Newtonsoft.Json 6.0.8; dropped the explicit `System`/`System.Core` references, which the SDK supplies implicitly for net48 — everything else (`System.Configuration`, `System.Runtime.Remoting`, `System.Xml`, `System.Xml.Linq`) stayed explicit, since only those two are implicit outside `netcoreapp`/`net5+`; set `GenerateAssemblyInfo=false` rather than delete `AssemblyInfo.cs`, which still carries the real title/company/version metadata. No `Compile` items needed listing — the implicit glob reproduces the existing 24 files exactly. |
+| `RoverRally.Core` | Converted to SDK-style (`Microsoft.NET.Sdk`), still net48/x86 (#12). `packages.config` → `PackageReference` for Newtonsoft.Json 6.0.8; dropped the explicit `System`/`System.Core` references, which the SDK supplies implicitly for net48 — everything else (`System.Configuration`, `System.Runtime.Remoting`, `System.Xml`, `System.Xml.Linq`) stayed explicit, since only those two are implicit outside `netcoreapp`/`net5+` — `System.Runtime.Remoting` was later dropped outright by #8, once `StationMonitorService`, its only caller, was deleted; set `GenerateAssemblyInfo=false` rather than delete `AssemblyInfo.cs`, which still carries the real title/company/version metadata. No `Compile` items needed listing — the implicit glob reproduces the existing 24 files exactly. |
 | `RoverRally.App` | Same treatment, still net48/x86 (#13). `UseWPF=true` replaced the four explicit `PresentationCore`/`PresentationFramework`/`WindowsBase`/`System.Xaml` references and took over globbing the XAML — `App.xaml` as `ApplicationDefinition`, the rest as `Page` — so the old `ApplicationDefinition`/`Page`/`Compile` item list came out entirely rather than being converted line by line. Kept `AssemblyName=RoverRally.Station` explicit, since SDK-style otherwise derives it from the project file name (`RoverRally.App`) and every doc in the repo names the exe by the old name. `Data\rovers.json` and `Data\session-cache.bin` moved from `<None Include>` to `<None Update>`, since the SDK's own default glob already picks up any non-code file as `None` — `Include`-ing them again is a duplicate-item error. |
 | `RoverRally.Tests` | Converted to SDK-style (`Microsoft.NET.Sdk`), still net48/x86 (#14) - the third and last project in the solution to move off the old format. `packages.config` → `PackageReference`, upgrading `MSTest.TestFramework`/`MSTest.TestAdapter` from 2.2.10 to 4.4.0 and adding `Microsoft.NET.Test.Sdk` 18.9.0, which `dotnet test` needs and `packages.config` restore never provided - this is also why `dotnet test` could not run the suite at all before this issue, not just why it needed extra flags. Dropped the explicit `<Compile Include>` list (the implicit glob reproduces the existing ten files exactly) and the `ProjectTypeGuids` test-project marker; kept `Properties/AssemblyInfo.cs` with `GenerateAssemblyInfo=false` rather than delete it, matching Core and App instead of the issue's literal wording. |
 
@@ -468,11 +468,13 @@ in the repo. Both classes compile into `RoverRally.Core`
 and `StationMonitorService`) but neither is ever constructed anywhere. No
 `Analyzers` folder and no `*.Analyzer.dll` exist anywhere in the repo, source
 or build output, so `AnalyzerHost.Discover()` has nothing to find even in
-principle. `App.config:18-20` does define `StationMonitorEndpoint` and
-`StationMonitorPort`, but the only code that reads them is
-`SettingsView.xaml.cs:31-32`, which concatenates the two values into a
-read-only `TextBlock` for display - neither value is ever passed to
-`StationMonitorService.Publish`, and nothing calls `Publish` at all. The
+principle. At the time of this spike, `App.config:18-20` did define
+`StationMonitorEndpoint` and `StationMonitorPort`, and the only code that read
+them was `SettingsView.xaml.cs:31-32`, which concatenated the two values into
+a read-only `TextBlock` for display - neither value was ever passed to
+`StationMonitorService.Publish`, and nothing called `Publish` at all. (Both
+citations are stale as of #8, which deleted that config and that display line
+outright - see the `#8 closes...` paragraph below for what replaced them.) The
 "office overview client" is not a running feature with dead config left over
 from decommissioning it; it's a Settings-tab label pointing at a service that
 never starts.
@@ -505,9 +507,11 @@ I haven't deleted the files yet - that's #7 and #8, which this issue blocks -
 but I've scoped it here so it isn't rediscovered: `Core/Monitoring/AnalyzerHost.cs`,
 `Core/Monitoring/StationMonitorService.cs`, `Core/Monitoring/RunSnapshot.cs`
 (and `RunSnapshotEntry`), the `System.Runtime.Remoting` project reference, the
-two `App.config:18-20` keys, the `SettingsView.xaml.cs:31-32` display line,
-and the stale "Remote monitoring" / "Post-run analyzers" sections of
-`docs/operations-guide.md:121-129`. Full evidence trace, with the same
+two keys then at `App.config:18-20`, the display line then at
+`SettingsView.xaml.cs:31-32`, and the stale "Remote monitoring" /
+"Post-run analyzers" sections of `docs/operations-guide.md:121-129`. All of
+these line numbers are as of this spike; #7 and #8 below record what each
+issue actually removed and where. Full evidence trace, with the same
 file:line citations, is on #1.
 
 **#7 closes the `AnalyzerHost` half of this.** I re-checked the spike's
@@ -525,6 +529,30 @@ that section, describing the office-overview client, is #8's to close out.
 Rebuilt the solution and reran the test suite after the deletion - still 76
 passed, 1 skipped, 0 failed - to confirm nothing depended on the type despite
 the spike's own trace.
+
+**#8 closes the `StationMonitorService` half of this.** Same re-check
+discipline as #7: a fresh repo-wide grep for `StationMonitorService`,
+`StationMonitorEndpoint`, `StationMonitorPort`, and `MonitorEndpointText`
+turned up nothing outside the exact files the spike had already listed, so
+nothing had grown a new dependency on any of them in the meantime.
+`Core/Monitoring/StationMonitorService.cs` is gone, and with it the only
+source in the repo that used `System.Runtime.Remoting`, so the reference came
+out of `RoverRally.Core.csproj` too - the acceptance criterion is "no
+`System.Runtime.Remoting` reference," not just "no `StationMonitorService`,"
+and I checked the build output confirms neither. `App.config` loses the
+`StationMonitorEndpoint`/`StationMonitorPort` keys and the comment that came
+with them; `SettingsView` loses the "Overview endpoint" row and the display
+line that read those two keys into it, which was the only code anywhere that
+touched them. (This supersedes earlier citations in this section to `App.config:18-20` / `SettingsView.xaml.cs:31-32` and the migration-table entry that listed `System.Runtime.Remoting` as still explicit.) `docs/operations-guide.md`'s "Remote monitoring" section and the
+"office overview client" mention in `docs/architecture.md`'s history line are
+gone too, for the reason the spike gave: the docs described a feature that
+had exactly one caller, and that caller printed two config values to a
+read-only text box.
+
+`Core/Monitoring/RunSnapshot.cs` stays untouched, same as #7 left it - it's
+#9's to remove, and `StationMonitorService` was its only caller, so it is now
+orphaned rather than deleted. Rebuilt the solution and reran the test suite
+after the deletion - still 76 passed, 1 skipped, 0 failed.
 
 ---
 

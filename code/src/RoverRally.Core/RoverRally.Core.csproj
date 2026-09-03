@@ -31,7 +31,6 @@
 
   <ItemGroup>
     <Reference Include="System.Configuration" />
-    <Reference Include="System.Runtime.Remoting" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Xml.Linq" />
   </ItemGroup>

@@ -118,15 +118,6 @@ radio, not so you can change them.
 
 ---
 
-## Remote monitoring
-
-The station publishes the live session so the overview client in the office can
-watch a run without anyone standing at the station PC. The endpoint is set with
-the `StationMonitorEndpoint` and `StationMonitorPort` values in the station
-configuration; the office client needs both, plus the station PC's hostname.
-
----
-
 ## Logs
 
 The station writes a rolling log to `C:\ProgramData\RoverRally\station.log`.
