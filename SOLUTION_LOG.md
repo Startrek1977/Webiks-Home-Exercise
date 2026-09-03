@@ -526,6 +526,30 @@ Rebuilt the solution and reran the test suite after the deletion - still 76
 passed, 1 skipped, 0 failed - to confirm nothing depended on the type despite
 the spike's own trace.
 
+**#8 closes the `StationMonitorService` half of this.** Same re-check
+discipline as #7: a fresh repo-wide grep for `StationMonitorService`,
+`StationMonitorEndpoint`, `StationMonitorPort`, and `MonitorEndpointText`
+turned up nothing outside the exact files the spike had already listed, so
+nothing had grown a new dependency on any of them in the meantime.
+`Core/Monitoring/StationMonitorService.cs` is gone, and with it the only
+source in the repo that used `System.Runtime.Remoting`, so the reference came
+out of `RoverRally.Core.csproj` too - the acceptance criterion is "no
+`System.Runtime.Remoting` reference," not just "no `StationMonitorService`,"
+and I checked the build output confirms neither. `App.config` loses the
+`StationMonitorEndpoint`/`StationMonitorPort` keys and the comment that came
+with them; `SettingsView` loses the "Overview endpoint" row and the display
+line that read those two keys into it, which was the only code anywhere that
+touched them. `docs/operations-guide.md`'s "Remote monitoring" section and the
+"office overview client" mention in `docs/architecture.md`'s history line are
+gone too, for the reason the spike gave: the docs described a feature that
+had exactly one caller, and that caller printed two config values to a
+read-only text box.
+
+`Core/Monitoring/RunSnapshot.cs` stays untouched, same as #7 left it - it's
+#9's to remove, and `StationMonitorService` was its only caller, so it is now
+orphaned rather than deleted. Rebuilt the solution and reran the test suite
+after the deletion - still 76 passed, 1 skipped, 0 failed.
+
 ---
 
 ## Logging

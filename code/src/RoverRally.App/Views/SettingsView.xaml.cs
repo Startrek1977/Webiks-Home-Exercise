@@ -1,4 +1,3 @@
-using System.Configuration;
 using System.Windows;
 using System.Windows.Controls;
 using RoverRally.App.ViewModels;
@@ -28,8 +27,6 @@ namespace RoverRally.App.Views
             TrackExtentText.Text = string.Format("N {0:0.0000}  S {1:0.0000}  W {2:0.0000}  E {3:0.0000}",
                                                  StationSettings.TrackNorth, StationSettings.TrackSouth,
                                                  StationSettings.TrackWest, StationSettings.TrackEast);
-            MonitorEndpointText.Text = ConfigurationManager.AppSettings["StationMonitorEndpoint"] + " : "
-                                       + ConfigurationManager.AppSettings["StationMonitorPort"];
             LogLevelText.Text = Log.MinimumLevel.ToString();
             StationText.Text = App.StationName + "  (operator " + App.OperatorName + ")";
 
