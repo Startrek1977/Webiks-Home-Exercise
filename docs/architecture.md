@@ -37,7 +37,7 @@ is an aspiration the window has not always met — see the rough edges below.
 | Component | Version | Notes |
 |---|---|---|
 | `Newtonsoft.Json` | 6.0.8 | Reads the roster file. Pinned at this version since 2016. |
-| `MSTest.TestFramework` | 2.2.10 | Test project only. |
+| `MSTest.TestFramework` | 4.4.0 | Test project only. |
 
 RoverLink Systems stopped trading and the support address bounces, so the
 32-bit-only `RoverLink.Telemetry.dll` has been replaced by a managed

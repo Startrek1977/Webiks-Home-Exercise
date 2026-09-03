@@ -63,45 +63,39 @@ namespace RoverRally.Tests
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentNullException))]
         public void RejectsANullBuffer()
         {
-            Crc8.Compute(null, 0, 0);
+            Assert.ThrowsExactly<ArgumentNullException>(() => Crc8.Compute(null, 0, 0));
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentOutOfRangeException))]
         public void RejectsANegativeOffset()
         {
-            Crc8.Compute(new byte[4], -1, 2);
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => Crc8.Compute(new byte[4], -1, 2));
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentOutOfRangeException))]
         public void RejectsANegativeCount()
         {
-            Crc8.Compute(new byte[4], 0, -1);
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => Crc8.Compute(new byte[4], 0, -1));
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentOutOfRangeException))]
         public void RejectsARangeThatRunsPastTheEndOfTheBuffer()
         {
-            Crc8.Compute(new byte[4], 2, 3);
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => Crc8.Compute(new byte[4], 2, 3));
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentOutOfRangeException))]
         public void RejectsAnOffsetLargeEnoughToOverflowTheBoundsCheck()
         {
-            Crc8.Compute(new byte[4], int.MaxValue, 1);
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => Crc8.Compute(new byte[4], int.MaxValue, 1));
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentOutOfRangeException))]
         public void RejectsACountLargeEnoughToOverflowTheBoundsCheck()
         {
-            Crc8.Compute(new byte[4], 1, int.MaxValue);
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => Crc8.Compute(new byte[4], 1, int.MaxValue));
         }
     }
 }
