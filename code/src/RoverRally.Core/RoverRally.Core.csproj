@@ -30,9 +30,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="6.0.8" />
-    <!-- NU1903: known high-severity CVE in 6.0.8; upgrade is deferred to #18, not this net8.0-windows retarget. -->
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-5crp-9r3c-p9vr" />
     <!-- Not part of the net8.0 base class library; ConfigurationManager.AppSettings
          (StationSettings.cs) needs this package explicitly. System.Xml/System.Xml.Linq
          and Microsoft.Win32.Registry need no equivalent - they're implicit under

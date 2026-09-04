@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Newtonsoft.Json;
+using System.Text.Json;
 using RoverRally.Core.Logging;
 using RoverRally.Core.Models;
 
@@ -24,7 +24,7 @@ namespace RoverRally.Core.Roster
             try
             {
                 string json = File.ReadAllText(path);
-                List<Rover> rovers = JsonConvert.DeserializeObject<List<Rover>>(json);
+                List<Rover> rovers = JsonSerializer.Deserialize<List<Rover>>(json);
 
                 if (rovers == null) rovers = new List<Rover>();
 
