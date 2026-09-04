@@ -20,8 +20,8 @@ msbuild RoverRally.sln -t:restore
 msbuild RoverRally.sln
 ```
 
-Requires the .NET Framework 4.8 targeting pack. Visual Studio 2022 handles the
-restore step on its own when you open the solution.
+Requires the .NET 8 SDK (as of #15). Visual Studio 2022 handles the restore
+step on its own when you open the solution.
 
 The station builds to `src/RoverRally.App/bin/Debug/RoverRally.Station.exe`.
 

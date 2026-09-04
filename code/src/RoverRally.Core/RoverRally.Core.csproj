@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <RootNamespace>RoverRally.Core</RootNamespace>
     <AssemblyName>RoverRally.Core</AssemblyName>
     <ProjectGuid>{8F3A1C22-5B47-4E19-9D6A-11C4E7B0A331}</ProjectGuid>
@@ -9,6 +9,7 @@
     <Deterministic>true</Deterministic>
     <PlatformTarget>x86</PlatformTarget>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
@@ -27,12 +28,11 @@
     <PackageReference Include="Newtonsoft.Json" Version="6.0.8" />
     <!-- NU1903: known high-severity CVE in 6.0.8; upgrade is deferred to #18, not this format conversion. -->
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-5crp-9r3c-p9vr" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="System.Configuration" />
-    <Reference Include="System.Xml" />
-    <Reference Include="System.Xml.Linq" />
+    <!-- Not part of the net8.0 base class library; ConfigurationManager.AppSettings
+         (StationSettings.cs) needs this package explicitly. System.Xml/System.Xml.Linq
+         and Microsoft.Win32.Registry need no equivalent - they're implicit under
+         net8.0-windows. -->
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.1" />
   </ItemGroup>
 
 </Project>
