@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -136,10 +135,7 @@ namespace RoverRally.App
 
         private void StartLink()
         {
-            string host = ConfigurationManager.AppSettings["CommandHost"];
-            if (string.IsNullOrEmpty(host)) host = "127.0.0.1";
-
-            _commands = new CommandSender(host, StationSettings.CommandPort);
+            _commands = new CommandSender(StationSettings.CommandHost, StationSettings.CommandPort);
 
             _telemetry = new TelemetryClient();
             _telemetry.FrameReceived += Telemetry_FrameReceived;
@@ -148,11 +144,8 @@ namespace RoverRally.App
 
             _vm.LinkState = "Listening";
 
-            int interval;
-            if (!int.TryParse(ConfigurationManager.AppSettings["DriveCommandIntervalMs"], out interval)) interval = 200;
-
             _driveTimer = new DispatcherTimer();
-            _driveTimer.Interval = TimeSpan.FromMilliseconds(interval);
+            _driveTimer.Interval = TimeSpan.FromMilliseconds(StationSettings.DriveCommandIntervalMs);
             _driveTimer.Tick += DriveTimer_Tick;
             _driveTimer.Start();
         }

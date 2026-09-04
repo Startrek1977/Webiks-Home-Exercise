@@ -31,12 +31,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Not part of the net8.0 base class library; ConfigurationManager.AppSettings
-         (App.xaml.cs, MainWindow.xaml.cs) needs this package explicitly. -->
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.1" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="Data\rovers.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

@@ -1,5 +1,4 @@
 using System;
-using System.Configuration;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
@@ -10,38 +9,54 @@ namespace RoverRally.Core.Configuration
 {
     /// <summary>
     /// Station configuration. Site-wide values (ports, track extent, roster
-    /// location) come from the application configuration file. Anything an
-    /// operator can change from the UI is kept per operator in the registry,
-    /// because the station PCs are shared between shifts.
+    /// location) come from <c>appsettings.json</c>, bound once at startup via
+    /// <see cref="Configure"/> into a <see cref="StationOptions"/>. Anything
+    /// an operator can change from the UI is kept per operator in the
+    /// registry, because the station PCs are shared between shifts.
     /// </summary>
     public static class StationSettings
     {
         private const string RegistryPath = @"Software\RoverLink\Station";
 
-        public static int TelemetryPort
+        private static StationOptions _options;
+
+        /// <summary>
+        /// Supplies the bound site configuration. Must be called once, before
+        /// any of the config-backed properties below are read - the app does
+        /// this first thing in <c>OnStartup</c>, ahead of anything that could
+        /// read a property.
+        /// </summary>
+        public static void Configure(StationOptions options)
         {
-            get { return ReadInt("TelemetryPort", 14550); }
+            _options = options ?? throw new ArgumentNullException(nameof(options));
         }
 
-        public static int CommandPort
+        private static StationOptions Options
         {
-            get { return ReadInt("CommandPort", 14551); }
+            get
+            {
+                if (_options == null)
+                {
+                    throw new InvalidOperationException(
+                        "StationSettings.Configure must be called before reading station configuration.");
+                }
+
+                return _options;
+            }
         }
 
-        public static string RosterPath
-        {
-            get { return ReadString("RosterPath", @"Data\rovers.json"); }
-        }
-
-        public static string SessionCachePath
-        {
-            get { return ReadString("SessionCachePath", @"Data\session-cache.bin"); }
-        }
-
-        public static double TrackNorth { get { return ReadDouble("TrackNorth", 32.2830); } }
-        public static double TrackSouth { get { return ReadDouble("TrackSouth", 32.2770); } }
-        public static double TrackWest { get { return ReadDouble("TrackWest", 34.9160); } }
-        public static double TrackEast { get { return ReadDouble("TrackEast", 34.9250); } }
+        public static string StationName { get { return Options.StationName; } }
+        public static int TelemetryPort { get { return Options.TelemetryPort; } }
+        public static int CommandPort { get { return Options.CommandPort; } }
+        public static string CommandHost { get { return Options.CommandHost; } }
+        public static string RosterPath { get { return Options.RosterPath; } }
+        public static string SessionCachePath { get { return Options.SessionCachePath; } }
+        public static double TrackNorth { get { return Options.TrackNorth; } }
+        public static double TrackSouth { get { return Options.TrackSouth; } }
+        public static double TrackWest { get { return Options.TrackWest; } }
+        public static double TrackEast { get { return Options.TrackEast; } }
+        public static int DriveCommandIntervalMs { get { return Options.DriveCommandIntervalMs; } }
+        public static Logging.LogLevel LogLevel { get { return Options.LogLevel; } }
 
         /// <summary>
         /// Each operator gets their own slot under the station key so that two
@@ -227,26 +242,6 @@ namespace RoverRally.Core.Configuration
             {
                 Log.Warn("Could not save operator profile: " + ex.Message);
             }
-        }
-
-        private static string ReadString(string name, string fallback)
-        {
-            string raw = ConfigurationManager.AppSettings[name];
-            return string.IsNullOrEmpty(raw) ? fallback : raw;
-        }
-
-        private static int ReadInt(string name, int fallback)
-        {
-            int parsed;
-            string raw = ConfigurationManager.AppSettings[name];
-            return int.TryParse(raw, out parsed) ? parsed : fallback;
-        }
-
-        private static double ReadDouble(string name, double fallback)
-        {
-            double parsed;
-            string raw = ConfigurationManager.AppSettings[name];
-            return double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out parsed) ? parsed : fallback;
         }
     }
 }

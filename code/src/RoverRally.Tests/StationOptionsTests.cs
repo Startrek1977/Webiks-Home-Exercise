@@ -1,0 +1,133 @@
+using System.Collections.Generic;
+using System.Globalization;
+using System.Threading;
+using Microsoft.Extensions.Configuration;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using RoverRally.Core.Configuration;
+using RoverRally.Core.Logging;
+
+namespace RoverRally.Tests
+{
+    [TestClass]
+    public class StationOptionsTests
+    {
+        private static IConfiguration BuildConfiguration(IDictionary<string, string> stationValues)
+        {
+            var flattened = new Dictionary<string, string>();
+            if (stationValues != null)
+            {
+                foreach (KeyValuePair<string, string> pair in stationValues)
+                {
+                    flattened["Station:" + pair.Key] = pair.Value;
+                }
+            }
+
+            return new ConfigurationBuilder().AddInMemoryCollection(flattened).Build();
+        }
+
+        [TestMethod]
+        public void LoadUsesTheDocumentedDefaultsWhenTheStationSectionIsEntirelyAbsent()
+        {
+            StationOptions options = StationOptions.Load(BuildConfiguration(null));
+
+            Assert.AreEqual("RoverRally Station", options.StationName);
+            Assert.AreEqual(14550, options.TelemetryPort);
+            Assert.AreEqual(14551, options.CommandPort);
+            Assert.AreEqual("127.0.0.1", options.CommandHost);
+            Assert.AreEqual(@"Data\rovers.json", options.RosterPath);
+            Assert.AreEqual(@"Data\session-cache.bin", options.SessionCachePath);
+            Assert.AreEqual(32.2830, options.TrackNorth);
+            Assert.AreEqual(32.2770, options.TrackSouth);
+            Assert.AreEqual(34.9160, options.TrackWest);
+            Assert.AreEqual(34.9250, options.TrackEast);
+            Assert.AreEqual(200, options.DriveCommandIntervalMs);
+            Assert.AreEqual(LogLevel.Info, options.LogLevel);
+        }
+
+        [TestMethod]
+        public void LoadHonoursEveryKeyThatIsPresentAndValid()
+        {
+            var values = new Dictionary<string, string>
+            {
+                ["StationName"] = "Test Track",
+                ["TelemetryPort"] = "15550",
+                ["CommandPort"] = "15551",
+                ["CommandHost"] = "192.168.1.50",
+                ["RosterPath"] = @"Config\other-rovers.json",
+                ["SessionCachePath"] = @"Config\other-cache.bin",
+                ["TrackNorth"] = "40.1",
+                ["TrackSouth"] = "40.0",
+                ["TrackWest"] = "-74.1",
+                ["TrackEast"] = "-74.0",
+                ["DriveCommandIntervalMs"] = "100",
+                ["LogLevel"] = "Warn"
+            };
+
+            StationOptions options = StationOptions.Load(BuildConfiguration(values));
+
+            Assert.AreEqual("Test Track", options.StationName);
+            Assert.AreEqual(15550, options.TelemetryPort);
+            Assert.AreEqual(15551, options.CommandPort);
+            Assert.AreEqual("192.168.1.50", options.CommandHost);
+            Assert.AreEqual(@"Config\other-rovers.json", options.RosterPath);
+            Assert.AreEqual(@"Config\other-cache.bin", options.SessionCachePath);
+            Assert.AreEqual(40.1, options.TrackNorth);
+            Assert.AreEqual(40.0, options.TrackSouth);
+            Assert.AreEqual(-74.1, options.TrackWest);
+            Assert.AreEqual(-74.0, options.TrackEast);
+            Assert.AreEqual(100, options.DriveCommandIntervalMs);
+            Assert.AreEqual(LogLevel.Warn, options.LogLevel);
+        }
+
+        [TestMethod]
+        public void LoadFallsBackToTheDefaultWhenAnIntegerKeyIsPresentButMalformed()
+        {
+            var values = new Dictionary<string, string> { ["TelemetryPort"] = "not-a-port" };
+
+            StationOptions options = StationOptions.Load(BuildConfiguration(values));
+
+            Assert.AreEqual(14550, options.TelemetryPort);
+        }
+
+        [TestMethod]
+        public void LoadFallsBackToTheDefaultWhenADoubleKeyIsPresentButMalformed()
+        {
+            var values = new Dictionary<string, string> { ["TrackNorth"] = "not-a-coordinate" };
+
+            StationOptions options = StationOptions.Load(BuildConfiguration(values));
+
+            Assert.AreEqual(32.2830, options.TrackNorth);
+        }
+
+        [TestMethod]
+        public void LoadFallsBackToTheDefaultWhenLogLevelIsPresentButNotARecognisedLevel()
+        {
+            var values = new Dictionary<string, string> { ["LogLevel"] = "Verbose" };
+
+            StationOptions options = StationOptions.Load(BuildConfiguration(values));
+
+            Assert.AreEqual(LogLevel.Info, options.LogLevel);
+        }
+
+        [TestMethod]
+        public void LoadParsesTrackCoordinatesWithInvariantCultureRegardlessOfTheCurrentThreadCulture()
+        {
+            CultureInfo original = Thread.CurrentThread.CurrentCulture;
+            try
+            {
+                // A culture that uses ',' as the decimal separator would silently
+                // misparse "32.5" as 325 under CurrentCulture rules.
+                Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
+
+                var values = new Dictionary<string, string> { ["TrackNorth"] = "32.5" };
+                StationOptions options = StationOptions.Load(BuildConfiguration(values));
+
+                Assert.AreEqual(32.5, options.TrackNorth);
+            }
+            finally
+            {
+                Thread.CurrentThread.CurrentCulture = original;
+            }
+        }
+    }
+}
