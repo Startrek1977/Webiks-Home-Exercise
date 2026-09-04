@@ -19,16 +19,19 @@ namespace RoverRally.Core.Control
     /// station's own idea of being armed identical to what it is transmitting,
     /// rather than merely intended to be.
     ///
-    /// This controller is global to the station, not per rover (see #35, the
-    /// still-pending root fix) - it protects whichever vehicle is currently
-    /// selected. Selecting a vehicle whose own telemetry reports a stop this
-    /// latch does not know about adopts it (see NextDriveCommand and
+    /// As of #35, one instance belongs to exactly one rover for its whole
+    /// lifetime - see DriveControllerRegistry, which is what MainWindow now
+    /// uses to get the right instance back on every selection change, rather
+    /// than sharing a single controller across the fleet the way #20 and #37
+    /// did. Selecting a vehicle whose own telemetry reports a stop this
+    /// latch does not know about still adopts it (see NextDriveCommand and
     /// TryToggleArm) rather than transmitting the false-clear that used to
-    /// reach it. Because the latch is shared, that adoption also holds back
-    /// the next vehicle selected, until someone re-arms - a known, accepted
-    /// consequence of not having per-rover state yet, not a new one; the same
-    /// station-wide bleed already applies to a stop engaged through the
-    /// button (see #37).
+    /// reach it - that guard stays as defense in depth even though, with one
+    /// controller per rover, every call to a given instance now addresses the
+    /// same rover it always has. The roverId parameter on every public method
+    /// is what made that guard possible before #35 existed, and costs nothing
+    /// to keep now that its cross-rover branches are unreachable in
+    /// production.
     /// </summary>
     public class DriveController
     {

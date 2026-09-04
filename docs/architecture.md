@@ -1,7 +1,8 @@
 # RoverRally Station — Architecture Notes
 
 **Last substantially updated:** June 2020 (ports and framework notes touched up
-2022; telemetry codec, emergency stop latch and no-fix frame handling 2026)
+2022; telemetry codec, emergency stop latch, per-rover drive state and no-fix
+frame handling 2026)
 
 ---
 
@@ -86,6 +87,16 @@ the drive timer going quiet is not the same as the vehicle being stopped. The
 vehicle's own two-second command-loss failsafe is a second, independent net, not
 the mechanism.
 
+The station now keeps one such latch per vehicle, rather than one for the whole
+fleet. Until 2026 a single `DriveController` was shared across the whole fleet,
+addressing whichever vehicle happened to be selected — selecting a different one
+in the Fleet tab could silently clear a stop, or hold one it never issued (#37).
+`Control/DriveControllerRegistry` now hands the station back the same
+`DriveController` instance for the same rover every time, so each vehicle has
+its own station-side latch: it persists in memory regardless of selection and
+reasserts itself the moment that vehicle is reselected, without the station
+needing to keep addressing vehicles it is not displaying.
+
 ---
 
 ## Known rough edges
@@ -94,8 +105,9 @@ the mechanism.
   obvious from the code which value comes from where.
 - The window does more than a window should. Pulling the drive logic out had
   been on the list since 2020; the armed and emergency-stop state came out in
-  #20 and now lives in `Core/Control/DriveController`, which is what made it
-  testable. Applying a decoded frame's fields to the rover model came out in
-  #36 the same way, into `Core/Models/Rover.ApplyFrame`. Geofence alerting and
-  the link lifecycle are still in the code-behind.
+  #20 and now lives in `Core/Control/DriveController`, one instance per
+  vehicle since #35 via `Core/Control/DriveControllerRegistry`, which is what
+  made it testable. Applying a decoded frame's fields to the rover model came
+  out in #36 the same way, into `Core/Models/Rover.ApplyFrame`. Geofence
+  alerting and the link lifecycle are still in the code-behind.
 - There is no logging to disk from the application itself.
