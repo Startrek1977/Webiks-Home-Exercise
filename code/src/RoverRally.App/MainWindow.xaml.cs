@@ -135,9 +135,9 @@ namespace RoverRally.App
 
         private void StartLink()
         {
-            _commands = new CommandSender(StationSettings.CommandHost, StationSettings.CommandPort);
+            _commands = new CommandSender(StationSettings.CommandHost, StationSettings.CommandPort, Log.CreateLogger<CommandSender>());
 
-            _telemetry = new TelemetryClient();
+            _telemetry = new TelemetryClient(Log.CreateLogger<TelemetryClient>());
             _telemetry.FrameReceived += Telemetry_FrameReceived;
             _telemetry.ConnectionStateChanged += Telemetry_ConnectionStateChanged;
             _telemetry.Start(StationSettings.TelemetryPort);

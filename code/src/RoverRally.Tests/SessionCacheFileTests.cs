@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoverRally.Core.Session;
+using RoverRally.Tests.TestSupport;
 
 namespace RoverRally.Tests
 {
@@ -181,6 +184,36 @@ namespace RoverRally.Tests
             {
                 File.Delete(path);
             }
+        }
+
+        [TestMethod]
+        public void ReadLogsAWarningForATruncatedFileViaTheInjectedLogger()
+        {
+            string path = TempCachePath();
+            try
+            {
+                byte[] truncated = GoldenShippedSessionCache.Take(SessionCacheFile.RecordSize + 5).ToArray();
+                File.WriteAllBytes(path, truncated);
+                CapturingLogger logger = new CapturingLogger();
+
+                SessionCacheFile.Read(path, logger);
+
+                Assert.IsTrue(logger.HasEntry(LogLevel.Warning, "truncated or corrupted"));
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void ReadLogsInformationWhenTheFileIsMissingViaTheInjectedLogger()
+        {
+            CapturingLogger logger = new CapturingLogger();
+
+            SessionCacheFile.Read(TempCachePath(), logger);
+
+            Assert.IsTrue(logger.HasEntry(LogLevel.Information, "starting empty"));
         }
     }
 }

@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoverRally.Core.Units;
+using RoverRally.Tests.TestSupport;
 
 namespace RoverRally.Tests
 {
@@ -54,6 +56,36 @@ namespace RoverRally.Tests
         public void IsCriticalFiresForAFailedSensorReading()
         {
             Assert.IsTrue(BatteryGauge.IsCritical(0));
+        }
+
+        [TestMethod]
+        public void LogsAWarningWhenAReadingClampsLow()
+        {
+            CapturingLogger logger = new CapturingLogger();
+
+            BatteryGauge.ToPercent(BatteryGauge.EmptyMilliVolts - 100, logger);
+
+            Assert.IsTrue(logger.HasEntry(LogLevel.Warning, "before clamping"));
+        }
+
+        [TestMethod]
+        public void LogsAWarningWhenAReadingClampsHigh()
+        {
+            CapturingLogger logger = new CapturingLogger();
+
+            BatteryGauge.ToPercent(BatteryGauge.FullMilliVolts + 400, logger);
+
+            Assert.IsTrue(logger.HasEntry(LogLevel.Warning, "before clamping"));
+        }
+
+        [TestMethod]
+        public void LogsNothingForAnInRangeReading()
+        {
+            CapturingLogger logger = new CapturingLogger();
+
+            BatteryGauge.ToPercent(11100, logger);
+
+            Assert.AreEqual(0, logger.Entries.Count);
         }
     }
 }

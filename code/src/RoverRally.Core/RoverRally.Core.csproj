@@ -36,6 +36,19 @@
          them for free via its ProjectReference to this project, needing no package
          reference of its own. -->
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.1" />
+
+    <!-- Rolling-file logging (#22). ILogger types appear in this project's own
+         public signatures (TelemetryClient, CommandSender, BatteryGauge,
+         SessionCacheFile, SessionCacheMigrator), so Logging.Abstractions is
+         referenced directly rather than left to flow in transitively. Serilog
+         itself is the composition-root implementation, wired up in
+         Logging/Log.cs only - nothing else in Core references it. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
   </ItemGroup>
 
 </Project>

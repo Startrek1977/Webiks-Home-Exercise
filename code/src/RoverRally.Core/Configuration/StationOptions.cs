@@ -28,6 +28,14 @@ namespace RoverRally.Core.Configuration
         public double TrackEast { get; set; }
         public int DriveCommandIntervalMs { get; set; }
         public LogLevel LogLevel { get; set; }
+        public string LogDirectory { get; set; }
+
+        /// <summary>
+        /// Per-user, non-admin-writable, and outside the exe's own install
+        /// location - the station may be installed under Program Files,
+        /// which a non-admin operator cannot write to (#22).
+        /// </summary>
+        private const string DefaultLogDirectory = @"%LocalAppData%\RoverLink\Station\Logs";
 
         public static StationOptions Load(IConfiguration configuration)
         {
@@ -48,7 +56,8 @@ namespace RoverRally.Core.Configuration
                 TrackWest = ReadDouble(section, "TrackWest", 34.9160),
                 TrackEast = ReadDouble(section, "TrackEast", 34.9250),
                 DriveCommandIntervalMs = ReadInt(section, "DriveCommandIntervalMs", 200),
-                LogLevel = ReadLogLevel(section, "LogLevel", LogLevel.Info)
+                LogLevel = ReadLogLevel(section, "LogLevel", LogLevel.Info),
+                LogDirectory = ReadLogDirectory(section, "LogDirectory", DefaultLogDirectory)
             };
         }
 
@@ -80,6 +89,21 @@ namespace RoverRally.Core.Configuration
 
             Log.Error("Station:" + key + " has an invalid value \"" + raw + "\"; using default " + fallback + ".");
             return fallback;
+        }
+
+        /// <summary>
+        /// Unlike the other ReadX helpers, any non-empty string is a
+        /// syntactically "valid" directory, so there is no malformed case to
+        /// log and fall back from - only absent, which uses
+        /// <paramref name="fallback"/>. Both the configured value and the
+        /// fallback are expanded (<c>%LocalAppData%</c> and friends) so
+        /// callers always receive a real, absolute path.
+        /// </summary>
+        private static string ReadLogDirectory(IConfigurationSection section, string key, string fallback)
+        {
+            string raw = section[key];
+            string path = string.IsNullOrEmpty(raw) ? fallback : raw;
+            return Environment.ExpandEnvironmentVariables(path);
         }
 
         private static LogLevel ReadLogLevel(IConfigurationSection section, string key, LogLevel fallback)

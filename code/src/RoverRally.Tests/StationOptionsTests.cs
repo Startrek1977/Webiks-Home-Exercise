@@ -42,6 +42,9 @@ namespace RoverRally.Tests
             Assert.AreEqual(34.9250, options.TrackEast);
             Assert.AreEqual(200, options.DriveCommandIntervalMs);
             Assert.AreEqual(LogLevel.Info, options.LogLevel);
+            Assert.AreEqual(
+                System.Environment.ExpandEnvironmentVariables(@"%LocalAppData%\RoverLink\Station\Logs"),
+                options.LogDirectory);
         }
 
         [TestMethod]
@@ -60,7 +63,8 @@ namespace RoverRally.Tests
                 ["TrackWest"] = "-74.1",
                 ["TrackEast"] = "-74.0",
                 ["DriveCommandIntervalMs"] = "100",
-                ["LogLevel"] = "Warn"
+                ["LogLevel"] = "Warn",
+                ["LogDirectory"] = @"D:\RoverLogs"
             };
 
             StationOptions options = StationOptions.Load(BuildConfiguration(values));
@@ -77,6 +81,18 @@ namespace RoverRally.Tests
             Assert.AreEqual(-74.0, options.TrackEast);
             Assert.AreEqual(100, options.DriveCommandIntervalMs);
             Assert.AreEqual(LogLevel.Warn, options.LogLevel);
+            Assert.AreEqual(@"D:\RoverLogs", options.LogDirectory);
+        }
+
+        [TestMethod]
+        public void LoadExpandsEnvironmentVariablesInLogDirectory()
+        {
+            var values = new Dictionary<string, string> { ["LogDirectory"] = @"%TEMP%\RoverLink\Logs" };
+
+            StationOptions options = StationOptions.Load(BuildConfiguration(values));
+
+            Assert.AreEqual(System.Environment.ExpandEnvironmentVariables(@"%TEMP%\RoverLink\Logs"), options.LogDirectory);
+            StringAssert.DoesNotMatch(options.LogDirectory, new System.Text.RegularExpressions.Regex("%"));
         }
 
         [TestMethod]

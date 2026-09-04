@@ -34,6 +34,10 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="4.4.0" />
     <PackageReference Include="MSTest.TestFramework" Version="4.4.0" />
+    <!-- Referenced directly (#22) because TestSupport/CapturingLogger.cs
+         implements ILogger itself, rather than relying on it flowing in
+         transitively via the ProjectReference below. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
   </ItemGroup>
 
   <ItemGroup>

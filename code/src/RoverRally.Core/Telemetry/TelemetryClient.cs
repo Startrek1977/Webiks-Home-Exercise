@@ -2,6 +2,7 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using Microsoft.Extensions.Logging;
 using RoverRally.Core.Logging;
 
 namespace RoverRally.Core.Telemetry
@@ -12,11 +13,23 @@ namespace RoverRally.Core.Telemetry
     /// </summary>
     public class TelemetryClient : IDisposable
     {
+        private readonly ILogger _logger;
+
         private UdpClient _udp;
         private Thread _worker;
         private volatile bool _running;
         private volatile bool _reconnecting;
         private int _port;
+
+        /// <summary>
+        /// <paramref name="logger"/> defaults to the static facade's own
+        /// logger (#22) so a caller that doesn't care still gets console and
+        /// rolling-file output; MainWindow passes a real one explicitly.
+        /// </summary>
+        public TelemetryClient(ILogger logger = null)
+        {
+            _logger = logger ?? Log.CreateLogger<TelemetryClient>();
+        }
 
         public event EventHandler<TelemetryReceivedEventArgs> FrameReceived;
         public event EventHandler ConnectionStateChanged;
@@ -47,7 +60,7 @@ namespace RoverRally.Core.Telemetry
             _worker.Name = "RoverLink telemetry";
             _worker.Start();
 
-            Log.Info("Telemetry listener started on UDP " + port + ".");
+            _logger.LogInformation("Telemetry listener started on UDP " + port + ".");
         }
 
         public void Stop()
@@ -57,11 +70,11 @@ namespace RoverRally.Core.Telemetry
             if (_udp != null)
             {
                 try { _udp.Close(); }
-                catch (Exception ex) { Log.Debug("Closing telemetry socket: " + ex.Message); }
+                catch (Exception ex) { _logger.LogDebug("Closing telemetry socket: " + ex.Message); }
                 _udp = null;
             }
 
-            Log.Info("Telemetry listener stopped.");
+            _logger.LogInformation("Telemetry listener stopped.");
         }
 
         private void Listen()
@@ -82,7 +95,7 @@ namespace RoverRally.Core.Telemetry
                     TelemetryFrame frame;
                     if (!FrameCodec.TryDecode(datagram, datagram.Length, out frame))
                     {
-                        Log.Debug("Discarded a malformed frame from " + sender + ".");
+                        _logger.LogDebug("Discarded a malformed frame from " + sender + ".");
                         continue;
                     }
 
@@ -93,13 +106,13 @@ namespace RoverRally.Core.Telemetry
                 {
                     if (!_running) break;
 
-                    Log.Warn("Telemetry socket fault, rebinding: " + ex.Message);
+                    _logger.LogWarning("Telemetry socket fault, rebinding: " + ex.Message);
                     SetReconnecting(true);
 
                     if (_udp != null)
                     {
                         try { _udp.Close(); }
-                        catch (Exception close) { Log.Debug("Closing faulted socket: " + close.Message); }
+                        catch (Exception close) { _logger.LogDebug("Closing faulted socket: " + close.Message); }
                         _udp = null;
                     }
 
