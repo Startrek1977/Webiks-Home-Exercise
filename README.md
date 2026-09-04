@@ -4,7 +4,7 @@ Ground control station for the rover fleet at Kadima Proving Ground.
 
 ```
 code/
-├── RoverRally.sln                  Station solution (.NET Framework 4.8, x86)
+├── RoverRally.sln                  Station solution (.NET 8, x64)
 ├── src/
 │   ├── RoverRally.App/             WPF station: track map, readouts, drive controls
 │   ├── RoverRally.Core/            Models, RL-100 codec and link, drive-control state, units, geometry, config, session cache
