@@ -396,17 +396,20 @@ csproj text that says so?*
 
 **What I found.** A full-repo search for `x86`, `PlatformTarget`,
 `Prefer32Bit`, `Marshal`, `StructLayout`, `IntPtr` and `DllImport` turned up
-exactly four files still carrying `x86`: `RoverRally.sln` (`Debug|x86` and
-`Release|x86` are the only two configurations it defines - there is no
-AnyCPU row to fall back to) and the three solution `.csproj` files, each with
-an unconditioned `<PlatformTarget>x86</PlatformTarget>`.
+exactly four files still carrying an x86 *build setting*: `RoverRally.sln`
+(`Debug|x86` and `Release|x86` are the only two configurations it defines -
+there is no AnyCPU row to fall back to) and the three solution `.csproj`
+files, each with an unconditioned `<PlatformTarget>x86</PlatformTarget>`.
+That count is about configuration, not every mention of the string - prose
+references to `x86` survive elsewhere (`docs/architecture.md`, and this log)
+describing the format's history, and those are deliberately untouched.
 `RoverRally.Simulator.csproj` is outside the solution, targets plain
 `net8.0`, and never had a `PlatformTarget` to begin with. Nothing else
 qualified: `Marshal`, `StructLayout`, `IntPtr` and `DllImport` are all gone
-from live code (only historical doc comments in `Session/SessionCacheFile.cs`
-and `SessionCacheMigrator.cs` still mention the old `IntPtr` handle #10
-removed), and the vendor's 32-bit-only telemetry DLL - the one thing that
-could never have run as x64 no matter how the csproj was configured - was
+from live code (only historical doc comments in `Session/SessionCacheMigrator.cs`
+and `RoverRally.Tests/SessionCacheFileTests.cs` still mention the old
+`IntPtr` handle #10 removed), and the vendor's 32-bit-only telemetry DLL - the
+one thing that could never have run as x64 no matter how the csproj was configured - was
 already deleted. I also checked whether the registry profile key
 (`StationSettings`, `HKCU\Software\RoverLink\Station\Profile_<hash>`) could
 break for an operator switching from the x86 station to the x64 one:
