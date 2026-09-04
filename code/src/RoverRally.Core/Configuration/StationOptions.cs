@@ -88,7 +88,7 @@ namespace RoverRally.Core.Configuration
             if (string.IsNullOrEmpty(raw)) return fallback;
 
             LogLevel parsed;
-            if (Enum.TryParse(raw, true, out parsed)) return parsed;
+            if (Enum.TryParse(raw, true, out parsed) && Enum.IsDefined(typeof(LogLevel), parsed)) return parsed;
 
             Log.Error("Station:" + key + " has an invalid value \"" + raw + "\"; using default " + fallback + ".");
             return fallback;

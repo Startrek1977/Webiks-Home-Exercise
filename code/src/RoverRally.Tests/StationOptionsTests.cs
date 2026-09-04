@@ -109,6 +109,22 @@ namespace RoverRally.Tests
             Assert.AreEqual(LogLevel.Info, options.LogLevel);
         }
 
+        /// <summary>
+        /// Enum.TryParse accepts any numeric string as a value of the target
+        /// enum even when nothing declares that value - "99" parses to a real
+        /// but undefined LogLevel rather than failing, which would then compare
+        /// greater than every real level and silently suppress all logging.
+        /// </summary>
+        [TestMethod]
+        public void LoadFallsBackToTheDefaultWhenLogLevelIsAnUndefinedNumericValue()
+        {
+            var values = new Dictionary<string, string> { ["LogLevel"] = "99" };
+
+            StationOptions options = StationOptions.Load(BuildConfiguration(values));
+
+            Assert.AreEqual(LogLevel.Info, options.LogLevel);
+        }
+
         [TestMethod]
         public void LoadParsesTrackCoordinatesWithInvariantCultureRegardlessOfTheCurrentThreadCulture()
         {
