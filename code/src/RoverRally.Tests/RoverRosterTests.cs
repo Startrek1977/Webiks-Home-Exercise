@@ -46,6 +46,8 @@ namespace RoverRally.Tests
                 Assert.AreEqual("RL100-0417", rovers[0].RadioSerial);
                 Assert.AreEqual((byte)2, rovers[1].Id);
                 Assert.AreEqual("Dune Goblin", rovers[1].Name);
+                Assert.AreEqual("RR-6 Dune Buggy", rovers[1].ChassisType);
+                Assert.AreEqual("RL100-0388", rovers[1].RadioSerial);
             }
             finally
             {

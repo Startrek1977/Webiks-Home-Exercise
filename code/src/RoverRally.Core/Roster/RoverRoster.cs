@@ -31,9 +31,14 @@ namespace RoverRally.Core.Roster
                 Log.Info(string.Format("Loaded {0} rover(s) from the roster.", rovers.Count));
                 return rovers;
             }
+            catch (JsonException ex)
+            {
+                Log.Error("Could not parse the roster at " + path + " as JSON", ex);
+                return new List<Rover>();
+            }
             catch (Exception ex)
             {
-                Log.Error("Could not read the roster", ex);
+                Log.Error("Could not read the roster at " + path, ex);
                 return new List<Rover>();
             }
         }
