@@ -53,5 +53,16 @@ namespace RoverRally.Tests
 
             Assert.AreEqual("1466.0 mph", display);
         }
+
+        [TestMethod]
+        public void MilesPerHourAgreesWithKilometresPerHourForTheSameInput()
+        {
+            double kmh = SpeedConverter.ToKilometresPerHour(500);
+            double mph = SpeedConverter.ToMilesPerHour(500);
+
+            Assert.AreEqual(18.0, kmh, 0.0000005);
+            Assert.AreEqual(11.184678, mph, 0.0000005);
+            Assert.AreEqual(kmh * 0.621371, mph, 0.0000005);
+        }
     }
 }

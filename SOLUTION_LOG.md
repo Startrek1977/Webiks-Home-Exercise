@@ -1312,6 +1312,51 @@ itself is demonstrated, not just unit-tested against a mock sink - see
 `LogTests` in the Logging section above, which writes real bytes to a real
 temp directory and measures what's left after retention runs.
 
+**#23** asked for boundary and failure coverage on the five calculation
+classes, describing the repo as it stood when the issue was filed: four
+tests, three single-value happy-path assertions, one asserting a known-wrong
+result. By the time I picked it up that description no longer matched
+reality, the same way #21 found `DriveControllerTests` had already outgrown
+its own ask. `BatteryGaugeTests` and `GeofenceMonitorTests` grew alongside
+the #2/#42 clamp fix and the #40 cross-rover leak fix; `SpeedConverterTests`
+grew alongside #3's fix, described just above; and `SessionCacheFileTests`
+already had a case covering
+`SessionCacheRecord.FromTicks`'s lower-bound guard from the #11/#51
+session-cache work. `TrackProjection` was the one class the issue's
+description still fit exactly: one test, `PlacesTheStartLine`, `[Ignore]`d
+because its expected pixels went stale when canvas sizing moved into the
+view layer, and it never exercised the false-path branch at all.
+
+So rather than write parallel suites that would duplicate what #2/#3/#40/#51
+already established, I checked each class's existing coverage against the
+issue's own list and closed only what was actually missing: an exact
+mid-range percent for `BatteryGauge.ToPercent` (the existing
+`ReportsAPercentage` only asserted `>= 0`) plus the exact `IsCritical`
+threshold at 15%/16%; a direct cross-check that `ToKilometresPerHour` and
+`ToMilesPerHour` agree for the same input, independent of `Format`'s
+rounding, asserted both as exact expected values and as the literal
+relationship `mph == kmh * 0.621371`; new `TrackProjectionTests` covering
+all four corners, the centre, and the false path in all four directions,
+since that class had nothing to build on; a point exactly on the fence
+boundary plus a direct call to `GeofenceMonitor.Contains` (existing tests
+only ever went through `IsOutside`); and `FromTicks`'s upper-bound guard,
+the two exact boundary tick values that must *not* clamp, and what
+`Duration` does when only one endpoint is corrupt. `PlacesTheStartLine`
+stays skipped - fixing its stale pixels is a different, narrower change
+than "add the missing coverage," and mixing the two would have made this
+change harder to review for what it actually is.
+
+Codex's review on the PR caught a real gap in the new corners/centre cases:
+every one of them used equal lat/lon spans and a square canvas, so a
+regression that swapped `_width`/`_height`, or swapped the latitude and
+longitude spans, would still have passed all of them.
+`ProjectsAnInteriorPointCorrectlyWithNonSquareBoundsAndARectangularCanvas`
+closes that - unequal spans and a rectangular canvas give x and y different
+scale factors, so a swap changes the projected point. All five classes were
+already correct; this issue changed no production code, only tests
+(`dotnet test` on the rebuilt suite: 146 passed, 0 failed, the one
+pre-existing skip).
+
 ---
 
 ## Architecture Decisions
@@ -1431,19 +1476,11 @@ rather than an error - which reads like a broken test project. It needs
 
 *What's genuinely still open, not what's already landed.*
 
-**Structured logging (#22).** Every fix in this exercise has leaned on the
-existing `Log.Info`/`Log.Warn` calls to verify against the real station and
-simulator - which is how I caught, for instance, the session-cache migration
-message reappearing after a clean rebuild, and the freshness-gate race in
-#39/#40. That's ad hoc verification, not a logging design. #22 is where that
-becomes a real decision - levels, structure, where output goes - rather than
-just "whatever happened to already be there."
-
-**Broader test coverage (#23/#24/#25).** The suite today is deep exactly
-where I went looking for bugs - the codec, `DriveController`, `Rover`,
-`GeofenceMonitor` - and thinner everywhere I didn't have a specific defect to
-chase. `TrackView`, `StationSettings`, and the WPF code-behind layer in
-general have no coverage at all: `RoverRally.Tests` doesn't currently
+**Broader test coverage (#24/#25 still open; #23 landed - see the Tests
+section above).** The suite today is deep exactly where I went looking for
+bugs - the codec, `DriveController`, `Rover`, `GeofenceMonitor` - and
+thinner everywhere I didn't have a specific defect to chase. `TrackView` and
+the WPF code-behind layer in general still have no coverage at all: `RoverRally.Tests` doesn't currently
 reference `RoverRally.App` - both projects target `net8.0-windows` since
 #15, so nothing stops adding that `ProjectReference`, it would just need real
 WPF test setup (an STA thread, a dispatcher) that nothing in this suite has
