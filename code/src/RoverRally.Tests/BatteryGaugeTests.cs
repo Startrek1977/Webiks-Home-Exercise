@@ -12,9 +12,7 @@ namespace RoverRally.Tests
         [TestMethod]
         public void ReportsAPercentage()
         {
-            int percent = BatteryGauge.ToPercent(11100);
-
-            Assert.IsTrue(percent >= 0);
+            Assert.AreEqual(58, BatteryGauge.ToPercent(11100));
         }
 
         [TestMethod]
@@ -57,6 +55,18 @@ namespace RoverRally.Tests
         public void IsCriticalFiresForAFailedSensorReading()
         {
             Assert.IsTrue(BatteryGauge.IsCritical(0));
+        }
+
+        [TestMethod]
+        public void IsCriticalIsTrueAtExactlyFifteenPercent()
+        {
+            Assert.IsTrue(BatteryGauge.IsCritical(9540)); // (9540-9000)*100/3600 == 15
+        }
+
+        [TestMethod]
+        public void IsCriticalIsFalseAtExactlySixteenPercent()
+        {
+            Assert.IsFalse(BatteryGauge.IsCritical(9576)); // (9576-9000)*100/3600 == 16
         }
 
         [TestMethod]

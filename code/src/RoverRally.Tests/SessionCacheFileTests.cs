@@ -152,6 +152,53 @@ namespace RoverRally.Tests
         }
 
         [TestMethod]
+        public void EndedUtcClampsToMinValueForOutOfRangeTicks()
+        {
+            SessionCacheRecord record = new SessionCacheRecord();
+            record.EndedUtcTicks = long.MaxValue;
+
+            Assert.AreEqual(DateTime.MinValue, record.EndedUtc);
+        }
+
+        [TestMethod]
+        public void StartedUtcDoesNotClampAtTheLowestValidTicksValue()
+        {
+            // ticks == 0 is DateTime.MinValue.Ticks, the guard's inclusive lower
+            // bound - it must take the constructed path, not the clamp path.
+            // DateTime equality ignores Kind, and DateTime.MinValue's value
+            // happens to equal new DateTime(0, Utc)'s value, so the Kind check
+            // is what actually tells the two branches apart here.
+            SessionCacheRecord record = new SessionCacheRecord();
+            record.StartedUtcTicks = 0;
+
+            Assert.AreEqual(DateTime.MinValue, record.StartedUtc);
+            Assert.AreEqual(DateTimeKind.Utc, record.StartedUtc.Kind);
+        }
+
+        [TestMethod]
+        public void EndedUtcDoesNotClampAtTheHighestValidTicksValue()
+        {
+            SessionCacheRecord record = new SessionCacheRecord();
+            record.EndedUtcTicks = DateTime.MaxValue.Ticks;
+
+            Assert.AreEqual(DateTime.MaxValue, record.EndedUtc);
+        }
+
+        [TestMethod]
+        public void DurationIsNegativeWhenOnlyTheEndedTicksAreOutOfRange()
+        {
+            // FromTicks never throws on corrupt data, so a bad EndedUtcTicks
+            // silently produces a large negative Duration rather than an
+            // error - documenting that consequence here.
+            SessionCacheRecord record = new SessionCacheRecord();
+            DateTime started = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+            record.StartedUtcTicks = started.Ticks;
+            record.EndedUtcTicks = long.MaxValue;
+
+            Assert.AreEqual(TimeSpan.FromTicks(-started.Ticks), record.Duration);
+        }
+
+        [TestMethod]
         public void ReadReturnsEmptyListWhenFileIsMissing()
         {
             IList<SessionCacheRecord> records = SessionCacheFile.Read(TempCachePath());

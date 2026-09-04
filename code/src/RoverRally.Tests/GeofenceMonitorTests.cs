@@ -108,5 +108,22 @@ namespace RoverRally.Tests
             Assert.IsTrue(monitor.IsOutside(SandstormId, Outside), "Sandstorm, tick 2: still running wide.");
             Assert.IsFalse(monitor.IsOutside(MishmishId, Inside), "Mishmish, tick 3: never left, never should warn.");
         }
+
+        [TestMethod]
+        public void ContainsReturnsTrueForAPointExactlyOnTheFencesLowerLeftVertex()
+        {
+            GeofenceMonitor monitor = new GeofenceMonitor(Fence);
+
+            Assert.IsTrue(monitor.Contains(new TrackPoint(0, 0)));
+        }
+
+        [TestMethod]
+        public void ContainsAgreesWithTheKnownInsideAndOutsidePositions()
+        {
+            GeofenceMonitor monitor = new GeofenceMonitor(Fence);
+
+            Assert.IsTrue(monitor.Contains(Inside));
+            Assert.IsFalse(monitor.Contains(Outside));
+        }
     }
 }
