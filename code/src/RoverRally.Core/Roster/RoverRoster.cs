@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Newtonsoft.Json;
+using System.Text.Json;
 using RoverRally.Core.Logging;
 using RoverRally.Core.Models;
 
@@ -24,16 +24,21 @@ namespace RoverRally.Core.Roster
             try
             {
                 string json = File.ReadAllText(path);
-                List<Rover> rovers = JsonConvert.DeserializeObject<List<Rover>>(json);
+                List<Rover> rovers = JsonSerializer.Deserialize<List<Rover>>(json);
 
                 if (rovers == null) rovers = new List<Rover>();
 
                 Log.Info(string.Format("Loaded {0} rover(s) from the roster.", rovers.Count));
                 return rovers;
             }
+            catch (JsonException ex)
+            {
+                Log.Error("Could not parse the roster at " + path + " as JSON", ex);
+                return new List<Rover>();
+            }
             catch (Exception ex)
             {
-                Log.Error("Could not read the roster", ex);
+                Log.Error("Could not read the roster at " + path, ex);
                 return new List<Rover>();
             }
         }

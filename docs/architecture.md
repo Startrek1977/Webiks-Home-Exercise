@@ -2,7 +2,8 @@
 
 **Last substantially updated:** June 2020 (ports and framework notes touched up
 2022; telemetry codec, emergency stop latch, per-rover drive state, no-fix
-frame handling and the legacy session cache migration 2026)
+frame handling, the legacy session cache migration, and the roster JSON
+library swap 2026)
 
 ---
 
@@ -37,13 +38,19 @@ is an aspiration the window has not always met — see the rough edges below.
 
 | Component | Version | Notes |
 |---|---|---|
-| `Newtonsoft.Json` | 6.0.8 | Reads the roster file. Pinned at this version since 2016. |
+| `System.Configuration.ConfigurationManager` | 8.0.1 | `ConfigurationManager.AppSettings` (`StationSettings.cs`) isn't part of the net8.0 base class library the way it was on net48, so it needs an explicit package reference. |
 | `MSTest.TestFramework` | 4.4.0 | Test project only. |
 
 RoverLink Systems stopped trading and the support address bounces, so the
 32-bit-only `RoverLink.Telemetry.dll` has been replaced by a managed
 reimplementation in `RoverRally.Core.Telemetry`. We own the RL-100 codec now;
 `docs/rover-link-protocol.md` is the specification it is written against.
+
+`Newtonsoft.Json` 6.0.8, which read the roster file and had been pinned since
+2016 with a known high-severity CVE, was replaced in 2026 (#18) with
+`System.Text.Json`, which ships in the `net8.0` shared framework rather than
+needing its own package reference. `System.Configuration.ConfigurationManager`
+above is the one third-party runtime package still in the tree.
 
 ---
 

@@ -1172,6 +1172,8 @@ needed for #21 - it closes against work already covered here.
 | Where the emergency stop latch lives | Make the simulator latch; hold it in `MainWindow`; extract a controller into Core | Extract `DriveController` into Core | The simulator stands in for firmware that cannot be changed in the field, and the vehicle is documented as level-triggered, so the latch belongs to the transmitter. Leaving it in code-behind would have left the one safety-critical control in the solution untestable |
 | Re-arming with the throttle raised | Allow it; snap the slider to zero; refuse | Refuse, and say why | The operator pressing the button is the marshal standing on the track. Clearing the latch into a raised slider drives the vehicle at them, which is the hazard the ops guide already warns about |
 | Where per-rover drive state is keyed (#35) | A bare `Dictionary<byte, DriveController>` field on `MainWindow`; a new `DriveControllerRegistry` in Core | `DriveControllerRegistry` in `RoverRally.Core.Control` | `DriveController` was already extracted into Core specifically so `RoverRally.Tests` could reach it without a WPF reference; a lookup-and-cache concern that only MainWindow could exercise would have put the one thing #20 deliberately made testable back behind an untestable wall. `DriveController.cs` itself needed zero logic changes - it already took `roverId` on every call |
+| Roster JSON library (#18) | Bump `Newtonsoft.Json` to 13.x; replace with `System.Text.Json` | `System.Text.Json` | It ships in the `net8.0` shared framework, so it removes a third-party dependency entirely rather than keeping one the runtime no longer needs just to parse one flat array. `Data/rovers.json`'s keys already match `Rover`'s PascalCase properties exactly, so the swap needed no shape changes |
+| STJ case sensitivity for the roster (#18) | `PropertyNameCaseInsensitive = true`, matching Newtonsoft's default; leave STJ's case-sensitive default | Case-sensitive default | The file matches PascalCase exactly today, so nothing about it needs case-insensitivity. This is a deliberate behavior change from Newtonsoft - the exact caveat the issue called out - accepted rather than silently carried forward: a future hand-edit with mismatched casing now leaves that field at its default instead of being silently tolerated |
 | Held stops for non-selected rovers (#35) | Transmit to every previously-stopped rover every tick ("fleet under command"); transmit only to the selected rover, same as today | One vehicle under command | Per-rover state means a deselected rover's latch persists in memory and reasserts itself the instant it's reselected, without the station needing to keep addressing vehicles it isn't displaying. Looping the drive timer over the whole roster is a materially larger claim about what this station does than the exercise asked for, and the issue itself steers away from it |
 | Where the legacy session cache migration runs (#11) | Auto-run on every station startup, ahead of `Read`; a library method only exercised by tests; a separate console tool | Auto-run on startup | A site's history has to survive with zero manual step, and `LoadSessionHistory`'s existing try/catch already keeps the app green if migration fails. A separate console tool is one more moving part to keep green for something that only ever needs to run once per file |
 | How to detect an already-migrated session cache (#11) | Add a version/marker to the format; treat a record's reserved slot already being zero as the signal; always reprocess with no detection at all | Reserved slot already zero | #10/#51 kept the on-disk layout byte-identical to the legacy one for compatibility, so the reserved slot's zero-ness is the only byte-level difference between "legacy" and "migrated" bytes - the one signal available without changing the wire format itself |
@@ -1272,15 +1274,6 @@ rather than an error - which reads like a broken test project. It needs
 ## What I'd Do With More Time
 
 *What's genuinely still open, not what's already landed.*
-
-**Replace `Newtonsoft.Json` (#18).** The CVE has been deferred at every
-opportunity since #12 first converted `RoverRally.Core` to `PackageReference`
-and surfaced it as an `NU1903` audit warning - correctly, since swapping a
-dependency was never in scope for a format conversion or a TFM retarget. It's
-still the right call to defer, and still real risk sitting in the tree. With
-more time this is its own issue: work out whether `System.Text.Json` covers
-`Data/rovers.json`'s shape without a behaviour change, or whether Newtonsoft
-stays and only the version moves.
 
 **Structured logging (#22).** Every fix in this exercise has leaned on the
 existing `Log.Info`/`Log.Warn` calls to verify against the real station and
