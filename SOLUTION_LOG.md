@@ -232,6 +232,23 @@ rebuild and not a regression - then `Telemetry listener started on UDP
 all 5 vehicles at 5 Hz the whole time and nothing but those five startup
 lines in the station's log - no decode failures, no exceptions, no crash.
 
+Copilot's review on the PR caught one thing I'd left alone on purpose and
+turned out to be wrong about: `RoverRally.Core.csproj` still conditioned its
+`DebugType`/`Optimize` `PropertyGroup`s on `'$(Configuration)|$(Platform)' ==
+'Debug|x86'`, the exact pattern #13 and #14 had already found and fixed on
+App and Tests - it stops matching whenever the project builds outside the
+`.sln` without also passing `-p:Platform=x86` by hand, since the SDK
+defaults `$(Platform)` to `AnyCPU` first. I'd treated it as out of scope for
+a TFM-only retarget; the review was right that it wasn't. I reproduced it
+with `-getProperty` rather than trusting the report: standalone, Core's
+`DebugType` evaluated to `portable`, not `full`, exactly as the finding
+said. Applied the same fix App and Tests already carry - drop `$(Platform)`
+from the conditions, key them on `$(Configuration)` alone - and reverified
+both entry points now agree (`DebugType=full`, `Optimize=false` for Debug,
+whether or not `$(Platform)` is set). Same review also caught a stale
+comment on the `NU1903` suppression still saying "this format conversion",
+left over from #12's wording, which I updated to name this issue instead.
+
 ### Moving to 64-bit
 
 *What did 64-bit break that .NET 8 on its own did not? How did you find it?*

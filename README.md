@@ -20,8 +20,13 @@ msbuild RoverRally.sln -t:restore
 msbuild RoverRally.sln
 ```
 
-Requires the .NET 8 SDK (as of #15). Visual Studio 2022 handles the restore
-step on its own when you open the solution.
+Requires the .NET 8 SDK and MSBuild 17.x, i.e. Visual Studio 2022 (or the
+Build Tools for Visual Studio 2022) — `msbuild` on its own is not part of the
+.NET 8 SDK, that's what supplies the CLI the commands above use. Visual
+Studio 2022 handles the restore step on its own when you open the solution.
+Windows-only as of #15: `net8.0-windows` is required for WPF and for the
+registry-backed operator profile, so this no longer builds or runs on
+Linux/macOS the way a plain `net8.0` project would.
 
 The station builds to `src/RoverRally.App/bin/Debug/RoverRally.Station.exe`.
 
