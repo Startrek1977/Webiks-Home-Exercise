@@ -1158,6 +1158,32 @@ that reproduces Dana's report directly. I re-ran the current suite
 the mutation again: 23 passed, 0 failed. No source or test changes were
 needed for #21 - it closes against work already covered here.
 
+**#19** is the first coverage `StationSettings`'s config-backed properties have
+ever had - `StationSettingsTests` covered only `BuildProfileKeyName` before
+this. Moving the parsing/fallback logic out of the static facade and into a
+plain `StationOptions.Load(IConfiguration)` made it directly testable without
+touching a real file on disk: `StationOptionsTests` builds an in-memory
+`IConfiguration` and asserts the three cases the issue's acceptance criteria
+actually turn on - every key's documented default when the `Station` section
+is absent entirely, every key honoured when present and valid, and (the one
+that mattered most) a present-but-malformed value falling back to the same
+default rather than propagating a `FormatException` or being silently
+accepted as something it isn't. One case is culture-specific on purpose -
+`TrackNorth`/`TrackSouth`/`TrackWest`/`TrackEast` parse under a forced
+`de-DE` thread culture, where `,` is the decimal separator, to pin down that
+`"32.5"` still means thirty-two point five and not three hundred twenty-five,
+which is exactly the kind of bug that would only show up on a
+non-English-locale build machine. `StationSettingsTests` gained one more case
+- reading a config-backed property before `Configure()` is called throws
+`InvalidOperationException` rather than returning a default or null, so a
+future call site added ahead of the `App.xaml.cs` bootstrap fails loudly
+instead of reading garbage. Verified end to end too, not just at the unit
+level: I hand-edited the deployed `appsettings.json` to give `TelemetryPort`
+and `TrackNorth` malformed values, relaunched the real station against the
+simulator, and confirmed the log showed both `Error` lines naming the bad
+key and value before the station came up listening on the default port
+14550 - then restored the file.
+
 ---
 
 ## Architecture Decisions
@@ -1311,6 +1337,18 @@ that has already picked up #19, is editing a file the station no longer
 reads. I left it alone for the same reason as the others (one issue, one
 job), but it's worth flagging on its own: #26 should treat this one as
 higher-priority than the general net48 wording cleanup.
+
+While checking every doc for App.config references during #19 I also noticed
+`docs/operations-guide.md`'s Logs section tells a marshal to attach
+`C:\ProgramData\RoverRally\station.log` to a fault report - a file that is
+never written. `Log.cs` only writes to `Console`/`Debug`;
+`docs/architecture.md`'s own "Known rough edges" already says as much
+("There is no logging to disk from the application itself"), so the two docs
+disagree with each other and only one of them agrees with the code. Unrelated
+to #19 and not fixed here - it's a `#22` (structured logging) question
+whether the fix is adding the file `docs/operations-guide.md` already
+promises, or correcting the promise - but worth having on record before #22
+or #26 picks it up, so it isn't rediscovered from scratch.
 
 **The registry profile key (worth its own issue - #17, unverified).** While
 working on the migration issues I noticed `StationSettings.ProfileKey` builds
