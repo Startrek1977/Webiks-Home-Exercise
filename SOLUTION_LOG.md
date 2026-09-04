@@ -672,8 +672,8 @@ migration cleanup. `RunSnapshot.Deserialize` fed bytes taken straight off
 `StationMonitorService`'s Remoting channel into `BinaryFormatter.Deserialize`.
 `BinaryFormatter` deserializes by walking arbitrary type metadata embedded in
 the payload itself and instantiating whatever it names - it does not just
-read data into a known shape, it lets the payload pick the shape. Feeding
-that untrusted network bytes is a textbook remote-code-execution vector, which
+read data into a known shape, it lets the payload pick the shape. Feeding it
+untrusted network bytes is a textbook remote-code-execution vector, which
 is exactly why .NET disables `BinaryFormatter` by default starting with .NET 8
 and removes it outright in .NET 9. Even setting the .NET-version deprecation
 aside, this would have been worth fixing on its own terms - the RCE risk does
