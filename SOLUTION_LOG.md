@@ -1158,6 +1158,32 @@ that reproduces Dana's report directly. I re-ran the current suite
 the mutation again: 23 passed, 0 failed. No source or test changes were
 needed for #21 - it closes against work already covered here.
 
+**#19** is the first coverage `StationSettings`'s config-backed properties have
+ever had - `StationSettingsTests` covered only `BuildProfileKeyName` before
+this. Moving the parsing/fallback logic out of the static facade and into a
+plain `StationOptions.Load(IConfiguration)` made it directly testable without
+touching a real file on disk: `StationOptionsTests` builds an in-memory
+`IConfiguration` and asserts the three cases the issue's acceptance criteria
+actually turn on - every key's documented default when the `Station` section
+is absent entirely, every key honoured when present and valid, and (the one
+that mattered most) a present-but-malformed value falling back to the same
+default rather than propagating a `FormatException` or being silently
+accepted as something it isn't. One case is culture-specific on purpose -
+`TrackNorth`/`TrackSouth`/`TrackWest`/`TrackEast` parse under a forced
+`de-DE` thread culture, where `,` is the decimal separator, to pin down that
+`"32.5"` still means thirty-two point five and not three hundred twenty-five,
+which is exactly the kind of bug that would only show up on a
+non-English-locale build machine. `StationSettingsTests` gained one more case
+- reading a config-backed property before `Configure()` is called throws
+`InvalidOperationException` rather than returning a default or null, so a
+future call site added ahead of the `App.xaml.cs` bootstrap fails loudly
+instead of reading garbage. Verified end to end too, not just at the unit
+level: I hand-edited the deployed `appsettings.json` to give `TelemetryPort`
+and `TrackNorth` malformed values, relaunched the real station against the
+simulator, and confirmed the log showed both `Error` lines naming the bad
+key and value before the station came up listening on the default port
+14550 - then restored the file.
+
 ---
 
 ## Architecture Decisions
@@ -1177,6 +1203,8 @@ needed for #21 - it closes against work already covered here.
 | Held stops for non-selected rovers (#35) | Transmit to every previously-stopped rover every tick ("fleet under command"); transmit only to the selected rover, same as today | One vehicle under command | Per-rover state means a deselected rover's latch persists in memory and reasserts itself the instant it's reselected, without the station needing to keep addressing vehicles it isn't displaying. Looping the drive timer over the whole roster is a materially larger claim about what this station does than the exercise asked for, and the issue itself steers away from it |
 | Where the legacy session cache migration runs (#11) | Auto-run on every station startup, ahead of `Read`; a library method only exercised by tests; a separate console tool | Auto-run on startup | A site's history has to survive with zero manual step, and `LoadSessionHistory`'s existing try/catch already keeps the app green if migration fails. A separate console tool is one more moving part to keep green for something that only ever needs to run once per file |
 | How to detect an already-migrated session cache (#11) | Add a version/marker to the format; treat a record's reserved slot already being zero as the signal; always reprocess with no detection at all | Reserved slot already zero | #10/#51 kept the on-disk layout byte-identical to the legacy one for compatibility, so the reserved slot's zero-ness is the only byte-level difference between "legacy" and "migrated" bytes - the one signal available without changing the wire format itself |
+| Config wiring after `App.config` (#19) | Full `Microsoft.Extensions.Hosting` generic host + `IOptions<StationOptions>` injected via DI; a static facade backed by a POCO bound once at startup | Static facade, no DI container | Nothing else in this WPF app uses dependency injection - `MainWindow` and every service it owns are still plain `new`. Introducing a host container to satisfy one issue's config keys is a structural change with a much bigger blast radius than #19 asked for. `StationSettings.Configure(StationOptions.Load(...))`, called once from `App.xaml.cs.OnStartup`, keeps the same ~16 call sites working unchanged |
+| Malformed vs. absent config values (#19) | Fail fast (throw, refuse to start); log and fall back to the documented default | Log and fall back | An absent key using its default is documented, existing behaviour and stays silent on purpose. A typo'd value (`TelemetryPort: "abc"`) is different - reverting to a default *unnoticed* is the exact failure mode the issue called out - so it logs an `Error` naming the bad key and value before falling back, rather than refusing to launch the station over one bad line in a file a site operator hand-edits |
 
 ---
 
@@ -1186,8 +1214,8 @@ needed for #21 - it closes against work already covered here.
 
 | Tool | How I used it |
 |---|---|
-| GitHub Copilot code review | Automatic review on the pull request. Earned its place twice. On the codec it caught a genuine integer-overflow hole in the CRC bounds check that my own tests had walked past, and a documentation/implementation mismatch on `TelemetryFrame`. On the emergency stop it caught an unguarded null dereference in both drive handlers, and an indicator that refreshed on telemetry but not on selection. Its file-by-file summaries are noise; the substantive findings have all been real. I reproduce each one before accepting it rather than taking the diagnosis on trust, which is also how I found that its "stale indicator" report was worse than described - not a brief lag, but permanent when the newly selected vehicle is silent |
-| Codex code review | Also automatic on the pull request. Raised the one finding I decided *not* to act on: with a single station-wide latch, stopping rover A and then selecting rover B stops B instead, and re-arming B clears A's latch. It is correct - I reproduced both halves against the simulator - but the fix is per-rover state, which the repository owner had explicitly deferred out of this issue, and binding the latch to its rover silently answers a design question (whether the station commands vehicles it is not showing) that belongs to the owner rather than to a reviewer or to me. Filed rather than fixed. Worth recording that the useful output of a review is not always a diff |
+| GitHub Copilot code review | Automatic review on the pull request. Earned its place a third time on #19: `ReadLogLevel` used `Enum.TryParse` without `Enum.IsDefined`, so a numeric-but-undefined value like `"LogLevel": 99` parsed successfully into a real `LogLevel` that happens not to be `Debug`/`Info`/`Warn`/`Error` - and because it compares greater than every real level, it silently disabled all logging rather than triggering the "invalid value" fallback the rest of the parsing already had. I reproduced it as a failing test first (asserted `LogLevel.Info` against `"99"`, watched it fail with `actual: 99`) before fixing it with an `Enum.IsDefined` guard. The same review also flagged that `AddJsonFile("appsettings.json", optional: false)` crashes the station if the file is missing or has invalid JSON, unlike the old App.config behaviour of treating a missing file as all-defaults; I did not act on this one - see Codex's row below, the same "filed rather than fixed" call for the same reason. Earned its place twice before that too: on the codec it caught a genuine integer-overflow hole in the CRC bounds check that my own tests had walked past, and a documentation/implementation mismatch on `TelemetryFrame`. On the emergency stop it caught an unguarded null dereference in both drive handlers, and an indicator that refreshed on telemetry but not on selection. Its file-by-file summaries are noise; the substantive findings have all been real. I reproduce each one before accepting it rather than taking the diagnosis on trust, which is also how I found that its "stale indicator" report was worse than described - not a brief lag, but permanent when the newly selected vehicle is silent |
+| Codex code review | Also automatic on the pull request. Caught the same `Enum.IsDefined` gap independently on #19, on the same line Copilot flagged - two reviewers converging on one real bug is a stronger signal than either alone, and it's the first Codex finding I've fixed rather than filed. Raised one finding on the emergency stop I decided *not* to act on: with a single station-wide latch, stopping rover A and then selecting rover B stops B instead, and re-arming B clears A's latch. It is correct - I reproduced both halves against the simulator - but the fix is per-rover state, which the repository owner had explicitly deferred out of this issue, and binding the latch to its rover silently answers a design question (whether the station commands vehicles it is not showing) that belongs to the owner rather than to a reviewer or to me. Filed rather than fixed. Copilot's `appsettings.json`-missing-crashes point in the row above, on this same PR, is the same situation again even though it came from a different reviewer: a real, correct observation about a decision (fail fast vs. fall back to all-defaults on a missing/corrupt config file) that the plan already made deliberately and the owner already approved, so overturning it from an automated review comment rather than a conversation with the owner would be answering a safety-relevant question that isn't mine or a reviewer's to answer unilaterally. Worth recording twice now that the useful output of a review is not always a diff |
 | Claude Code (Opus) | Planning and implementation, driven issue by issue. Most useful on the mechanical-but-fiddly work: enumerating the vendor assembly's real member list out of its metadata, and generating exhaustive test cases. I had to direct the verification explicitly - left to itself it would have stopped at a green test run rather than mutation-testing the suite and driving the real simulator over UDP. It also produced the stale-DLL false alarm described under Challenges, by rebuilding while a deliberate mutation was still applied |
 
 ---
@@ -1300,7 +1328,27 @@ I deliberately left alone issue by issue - #15's and #16's own commits both
 say so explicitly, pointing the remaining prose cleanup at #26. Each
 individual issue was right not to scope-creep into a full doc pass; the debt
 is real and belongs to its own issue rather than staying scattered as "not
-this issue's job" footnotes.
+this issue's job" footnotes. #19 adds a sharper case than the others: it
+moves the file site staff actually edit, `App.config` to `appsettings.json`,
+and `README.md`'s configuration table and `docs/operations-guide.md` still
+point at the old name. That is not a wording nit like the rest of this
+debt - an operator who edits the file the README tells them to, on a station
+that has already picked up #19, is editing a file the station no longer
+reads. I left it alone for the same reason as the others (one issue, one
+job), but it's worth flagging on its own: #26 should treat this one as
+higher-priority than the general net48 wording cleanup.
+
+While checking every doc for App.config references during #19 I also noticed
+`docs/operations-guide.md`'s Logs section tells a marshal to attach
+`C:\ProgramData\RoverRally\station.log` to a fault report - a file that is
+never written. `Log.cs` only writes to `Console`/`Debug`;
+`docs/architecture.md`'s own "Known rough edges" already says as much
+("There is no logging to disk from the application itself"), so the two docs
+disagree with each other and only one of them agrees with the code. Unrelated
+to #19 and not fixed here - it's a `#22` (structured logging) question
+whether the fix is adding the file `docs/operations-guide.md` already
+promises, or correcting the promise - but worth having on record before #22
+or #26 picks it up, so it isn't rediscovered from scratch.
 
 **The registry profile key (worth its own issue - #17, unverified).** While
 working on the migration issues I noticed `StationSettings.ProfileKey` builds

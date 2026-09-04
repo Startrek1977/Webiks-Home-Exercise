@@ -1,5 +1,7 @@
-using System.Configuration;
+using System;
 using System.Windows;
+using Microsoft.Extensions.Configuration;
+using RoverRally.Core.Configuration;
 using RoverRally.Core.Logging;
 
 namespace RoverRally.App
@@ -13,15 +15,15 @@ namespace RoverRally.App
         {
             base.OnStartup(e);
 
-            string configured = ConfigurationManager.AppSettings["StationName"];
-            if (!string.IsNullOrEmpty(configured)) StationName = configured;
+            IConfiguration configuration = new ConfigurationBuilder()
+                .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: false)
+                .Build();
 
-            string level = ConfigurationManager.AppSettings["LogLevel"];
-            if (!string.IsNullOrEmpty(level))
-            {
-                LogLevel parsed;
-                if (System.Enum.TryParse(level, true, out parsed)) Log.MinimumLevel = parsed;
-            }
+            StationSettings.Configure(StationOptions.Load(configuration));
+
+            StationName = StationSettings.StationName;
+            Log.MinimumLevel = StationSettings.LogLevel;
 
             Log.Info("Station starting up: " + StationName + " (operator " + OperatorName + ")");
         }

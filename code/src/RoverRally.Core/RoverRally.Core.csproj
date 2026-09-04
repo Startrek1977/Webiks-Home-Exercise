@@ -30,11 +30,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Not part of the net8.0 base class library; ConfigurationManager.AppSettings
-         (StationSettings.cs) needs this package explicitly. System.Xml/System.Xml.Linq
-         and Microsoft.Win32.Registry need no equivalent - they're implicit under
-         net8.0-windows. -->
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.1" />
+    <!-- Binds appsettings.json's "Station" section into StationOptions
+         (Configuration/StationOptions.cs). Pulls in Microsoft.Extensions.Configuration,
+         .Abstractions and .FileExtensions transitively - RoverRally.App gets all of
+         them for free via its ProjectReference to this project, needing no package
+         reference of its own. -->
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.1" />
   </ItemGroup>
 
 </Project>
