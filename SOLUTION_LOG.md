@@ -388,6 +388,84 @@ then swap it into place with the backup created in the same atomic
 operation - so an interruption leaves either the untouched original or the
 fully-converted file, never something in between.
 
+### Flipping the platform to x64 (#16)
+
+*Everything risky was already done by #10, #11 and #15 - so what was actually
+left, and how did I prove the result is genuinely 64-bit rather than just
+csproj text that says so?*
+
+**What I found.** A full-repo search for `x86`, `PlatformTarget`,
+`Prefer32Bit`, `Marshal`, `StructLayout`, `IntPtr` and `DllImport` turned up
+exactly four files still carrying `x86`: `RoverRally.sln` (`Debug|x86` and
+`Release|x86` are the only two configurations it defines - there is no
+AnyCPU row to fall back to) and the three solution `.csproj` files, each with
+an unconditioned `<PlatformTarget>x86</PlatformTarget>`.
+`RoverRally.Simulator.csproj` is outside the solution, targets plain
+`net8.0`, and never had a `PlatformTarget` to begin with. Nothing else
+qualified: `Marshal`, `StructLayout`, `IntPtr` and `DllImport` are all gone
+from live code (only historical doc comments in `Session/SessionCacheFile.cs`
+and `SessionCacheMigrator.cs` still mention the old `IntPtr` handle #10
+removed), and the vendor's 32-bit-only telemetry DLL - the one thing that
+could never have run as x64 no matter how the csproj was configured - was
+already deleted. I also checked whether the registry profile key
+(`StationSettings`, `HKCU\Software\RoverLink\Station\Profile_<hash>`) could
+break for an operator switching from the x86 station to the x64 one:
+`Registry.CurrentUser` is used with no explicit `RegistryView`, and
+`HKEY_CURRENT_USER\Software` is never subject to WOW6432Node redirection -
+only `HKLM\SOFTWARE` is - so a 32-bit and 64-bit process read the exact same
+key. An operator's saved speed unit and last-selected rover survive the flip
+untouched. So the actual change was narrow: two `.sln` configuration rows and
+three `PlatformTarget` values.
+
+**What I decided.** Explicit `x64` in all three csproj files, not
+AnyCPU+`Prefer32Bit=false` - it is the smaller diff, and it keeps the
+`-p:Platform=<value>` command shape CLAUDE.md already documents instead of
+needing "Any CPU" quoting. I swapped every `Debug|x86`/`Release|x86` row in
+the `.sln`'s `SolutionConfigurationPlatforms` and all three GUIDs'
+`ProjectConfigurationPlatforms` entries for `Debug|x64`/`Release|x64`, and
+changed `PlatformTarget` in `RoverRally.Core.csproj`, `RoverRally.App.csproj`
+and `RoverRally.Tests.csproj` from `x86` to `x64`, updating each project's own
+rationale comment about `Debug|x86`/`-p:Platform=x86` to match. I also added
+`RoverRally.Tests/PlatformTests.cs` with one test,
+`RunsAsA64BitProcess`, asserting `Environment.Is64BitProcess` - the issue
+explicitly warns not to assume 64-bitness from the build configuration, and a
+one-time manual check does not stop a future accidental revert to x86; a
+permanent test does.
+
+**How I verified it.** Deleted `code/src/*/bin` and `code/src/*/obj` first -
+CLAUDE.md's own documented trap is that a stale x86 output directory can mask
+whether the platform actually changed - then ran
+`MSBuild.exe code/RoverRally.sln -t:Rebuild -p:Configuration=Debug
+-p:Platform=x64`, which succeeded outright. Rather than trust that, I read the
+built `RoverRally.Station.exe`'s PE header directly: the `IMAGE_FILE_HEADER`
+`Machine` field at the offset named by `e_lfanew` (byte 0x3C) came back
+`0x8664` - `IMAGE_FILE_MACHINE_AMD64` - not `0x14C` (`IMAGE_FILE_MACHINE_I386`).
+`dotnet test` on the rebuilt `RoverRally.Tests.csproj` passed 94 of 95 (the
+one skip is the pre-existing `PlacesTheStartLine`, same baseline as before),
+including the new `RunsAsA64BitProcess` and, more importantly,
+`SessionCacheFileTests`/`SessionCacheMigratorTests` re-validating the golden
+32-byte record layout under the new architecture.
+
+Then the end-to-end check the issue actually asks for: I launched the real
+simulator, then the real built `RoverRally.Station.exe` with its console
+output captured. It logged `Session cache at ...session-cache.bin has no
+legacy session-handle bytes left; nothing to migrate.` followed by `Loaded 8
+run(s) from the session cache.` - the same 8 runs #10 and #11 verified,
+now read back by a station that is not merely "not crashing" but provably
+native x64. To confirm that last part while the process was actually running
+- not just the exe file on disk - I called `IsWow64Process` from `kernel32`
+against the live PID: it returned `false` while
+`Environment.Is64BitOperatingSystem` on the same machine returned `true`,
+meaning the station is a genuine 64-bit process, not a 32-bit one running
+under WOW64 emulation - the same distinction Task Manager's "Platform" column
+shows. Finally I drove the actual UI against the running simulator: telemetry
+populated the track view for all 5 rovers, ARM/DISARM flipped
+`STATION`/`VEHICLE` state correctly, and EMERGENCY STOP produced the real
+confirmation dialog ("Emergency stop sent to Falafel. The stop is held until
+you press ARM.") and left the station in `STATION: STOP LATCHED - VEHICLE:
+STOPPED` until I pressed ARM again - the #20 latch behavior working through
+the real UI, not only through `DriveControllerTests`.
+
 ---
 
 ## The Telemetry SDK

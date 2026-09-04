@@ -8,13 +8,13 @@
     <ProjectGuid>{5C1B8E77-9F04-42A6-B3D1-8A2F6E44C019}</ProjectGuid>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <Deterministic>true</Deterministic>
-    <PlatformTarget>x86</PlatformTarget>
+    <PlatformTarget>x64</PlatformTarget>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <!-- Keyed on Configuration alone, not Platform: the SDK's implicit top
          import already defaults $(Platform) to AnyCPU before this file's own
-         PropertyGroups run, so a Debug|x86 / Release|x86 condition silently
+         PropertyGroups run, so a Debug|x64 / Release|x64 condition silently
          fails to match whenever the project builds outside the .sln (which is
-         what supplies Platform=x86) without also passing -p:Platform=x86 by
+         what supplies Platform=x64) without also passing -p:Platform=x64 by
          hand — including a plain `dotnet test`. PlatformTarget above is
          unconditioned for the same reason. -->
     <OutputPath>bin\$(Configuration)\</OutputPath>
