@@ -87,14 +87,15 @@ the drive timer going quiet is not the same as the vehicle being stopped. The
 vehicle's own two-second command-loss failsafe is a second, independent net, not
 the mechanism.
 
-Each vehicle has its own latch. Until 2026 a single `DriveController` was shared
-across the whole fleet, addressing whichever vehicle happened to be selected —
-selecting a different one in the Fleet tab could silently clear a stop, or hold
-one it never issued (#37). `Control/DriveControllerRegistry` now hands the
-station back the same `DriveController` instance for the same rover every time,
-so a vehicle's latch persists in memory regardless of selection and reasserts
-itself the moment it is reselected, without the station needing to keep
-addressing vehicles it is not displaying.
+The station now keeps one such latch per vehicle, rather than one for the whole
+fleet. Until 2026 a single `DriveController` was shared across the whole fleet,
+addressing whichever vehicle happened to be selected — selecting a different one
+in the Fleet tab could silently clear a stop, or hold one it never issued (#37).
+`Control/DriveControllerRegistry` now hands the station back the same
+`DriveController` instance for the same rover every time, so each vehicle has
+its own station-side latch: it persists in memory regardless of selection and
+reasserts itself the moment that vehicle is reselected, without the station
+needing to keep addressing vehicles it is not displaying.
 
 ---
 
