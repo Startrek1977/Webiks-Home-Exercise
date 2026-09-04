@@ -260,6 +260,27 @@ all 8 runs. Both runs only touched the build-output copy under
 station always resolves the cache path from
 `AppDomain.CurrentDomain.BaseDirectory`.
 
+Two automated reviews on the pull request each caught a real gap. Codex
+pointed out that `LoadSessionHistory` shared one `try` block across
+`MigrateIfNeeded` and `Read`, so a migration failure - a legacy file with a
+torn trailing record, say - would skip the read entirely and show no history
+at all, where `Read` alone would have discarded the torn bytes and shown
+every complete run. I reproduced it before fixing it: crafted a 37-byte file
+(one full record plus a torn tail) in the build-output `Data\` folder and ran
+the real station against it. It logged the migration failure and then still
+logged `Loaded 1 run(s) from the session cache.` - the fix was splitting the
+two calls into their own `try`/`catch` blocks so a migration failure no
+longer prevents the fallback read. Copilot separately caught that the write
+itself - `File.Copy` for the backup, then `File.WriteAllBytes` straight onto
+the original path - was two non-atomic steps; an interruption between them
+(disk full, power loss, AV lock) could leave a half-written
+`session-cache.bin` behind, and since the backup would already exist by
+then, a later run would refuse to retry rather than clean it up. Both steps
+are now one `File.Replace` call - write the converted bytes to a temp file,
+then swap it into place with the backup created in the same atomic
+operation - so an interruption leaves either the untouched original or the
+fully-converted file, never something in between.
+
 ---
 
 ## The Telemetry SDK

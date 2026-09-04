@@ -22,6 +22,11 @@ namespace RoverRally.Core.Session
     ///
     /// The offsets below were verified against the real shipped
     /// <c>RoverRally.App/Data/session-cache.bin</c> (256 bytes, 8 records).
+    ///
+    /// The backup-and-write step is one atomic <see cref="File.Replace(string, string, string)"/>
+    /// call rather than a copy followed by an in-place write, so a process
+    /// interrupted mid-write (disk full, power loss, AV lock) leaves either the
+    /// untouched original or the fully-converted file - never a half-written one.
     /// </summary>
     public static class SessionCacheMigrator
     {
@@ -73,11 +78,29 @@ namespace RoverRally.Core.Session
                     backupPath));
             }
 
-            File.Copy(path, backupPath);
-
             byte[] converted = (byte[])raw.Clone();
             ZeroSessionHandles(converted, count, recordSize);
-            File.WriteAllBytes(path, converted);
+
+            // Write the converted bytes to a temp file first and swap it into
+            // place with File.Replace, which performs the backup-and-replace as
+            // one atomic filesystem operation. Writing straight to `path` risks
+            // leaving a half-written session-cache.bin behind if the process is
+            // interrupted mid-write (disk full, power loss, AV lock) - and since
+            // the backup would already exist, a later run would refuse to retry.
+            string tempPath = path + ".tmp";
+            File.WriteAllBytes(tempPath, converted);
+            try
+            {
+                File.Replace(tempPath, path, backupPath);
+            }
+            catch
+            {
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+                throw;
+            }
 
             Log.Info(string.Format(
                 "Migrated {0} legacy session cache record(s) at {1}; original preserved at {2}.",

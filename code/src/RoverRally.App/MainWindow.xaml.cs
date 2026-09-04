@@ -113,6 +113,18 @@ namespace RoverRally.App
             try
             {
                 SessionCacheMigrator.MigrateIfNeeded(path);
+            }
+            catch (Exception ex)
+            {
+                // A migration failure must not stop the original file from being
+                // read: SessionCacheFile.Read tolerates a legacy/torn file and
+                // still shows every complete run, and MigrateIfNeeded never
+                // touches the file on the way to throwing.
+                Log.Error("Could not migrate the session cache", ex);
+            }
+
+            try
+            {
                 Fleet.SetHistory(SessionCacheFile.Read(path));
             }
             catch (Exception ex)
