@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoverRally.Core.Units;
@@ -86,6 +87,12 @@ namespace RoverRally.Tests
             BatteryGauge.ToPercent(11100, logger);
 
             Assert.AreEqual(0, logger.Entries.Count);
+        }
+
+        [TestMethod]
+        public void ToPercentWithLoggerThrowsForANullLogger()
+        {
+            Assert.ThrowsExactly<ArgumentNullException>(() => BatteryGauge.ToPercent(11100, null));
         }
     }
 }

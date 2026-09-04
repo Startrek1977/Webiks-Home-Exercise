@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.IO;
 using Microsoft.Extensions.Configuration;
 using RoverRally.Core.Logging;
 
@@ -92,18 +93,25 @@ namespace RoverRally.Core.Configuration
         }
 
         /// <summary>
-        /// Unlike the other ReadX helpers, any non-empty string is a
+        /// Unlike the other ReadX helpers, any non-blank string is a
         /// syntactically "valid" directory, so there is no malformed case to
-        /// log and fall back from - only absent, which uses
-        /// <paramref name="fallback"/>. Both the configured value and the
-        /// fallback are expanded (<c>%LocalAppData%</c> and friends) so
-        /// callers always receive a real, absolute path.
+        /// log and fall back from - only absent or whitespace-only, which
+        /// use <paramref name="fallback"/>. Both the configured value and
+        /// the fallback are expanded (<c>%LocalAppData%</c> and friends),
+        /// trimmed, and rooted against the application's base directory if
+        /// not already absolute, so callers always receive a real, absolute
+        /// path - not just an expanded one, which a relative value like
+        /// <c>"Logs"</c> would otherwise still be.
         /// </summary>
         private static string ReadLogDirectory(IConfigurationSection section, string key, string fallback)
         {
             string raw = section[key];
-            string path = string.IsNullOrEmpty(raw) ? fallback : raw;
-            return Environment.ExpandEnvironmentVariables(path);
+            string path = string.IsNullOrWhiteSpace(raw) ? fallback : raw;
+            string expanded = Environment.ExpandEnvironmentVariables(path).Trim();
+
+            return Path.IsPathRooted(expanded)
+                ? expanded
+                : Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, expanded));
         }
 
         private static LogLevel ReadLogLevel(IConfigurationSection section, string key, LogLevel fallback)

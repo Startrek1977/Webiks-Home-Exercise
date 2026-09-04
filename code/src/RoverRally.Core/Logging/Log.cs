@@ -145,13 +145,20 @@ namespace RoverRally.Core.Logging
         /// </summary>
         public static void Shutdown()
         {
+            if (_loggerFactory != null)
+            {
+                // Built with dispose:false, so this does not cascade into
+                // _serilogLogger - that one is disposed explicitly below.
+                _loggerFactory.Dispose();
+                _loggerFactory = null;
+            }
+
             if (_serilogLogger != null)
             {
                 _serilogLogger.Dispose();
                 _serilogLogger = null;
             }
 
-            _loggerFactory = null;
             _facadeLogger = null;
             MinimumLevel = LogLevel.Info;
         }

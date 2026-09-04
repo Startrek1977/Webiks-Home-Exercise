@@ -42,9 +42,10 @@ namespace RoverRally.Core.Session
         /// leaves the file untouched if it is missing or already migrated.
         /// Throws <see cref="IOException"/>, leaving the file untouched, if the
         /// file is corrupt/truncated or if a backup from a previous run is
-        /// already present.
+        /// already present. Delegates to the <see cref="ILogger"/> overload
+        /// (#22) using the static facade's own logger, so this call site's
+        /// behaviour is unchanged.
         /// </summary>
-        /// <summary>Delegates to the <see cref="ILogger"/> overload (#22) using the static facade's own logger, so this call site's behaviour is unchanged.</summary>
         public static bool MigrateIfNeeded(string path)
         {
             return MigrateIfNeeded(path, Log.CreateLogger(nameof(SessionCacheMigrator)));

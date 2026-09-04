@@ -95,6 +95,38 @@ namespace RoverRally.Tests
             StringAssert.DoesNotMatch(options.LogDirectory, new System.Text.RegularExpressions.Regex("%"));
         }
 
+        /// <summary>
+        /// A relative value on its own would leave the log path dependent on
+        /// whatever the process's current directory happens to be at the
+        /// point Serilog opens the file - not necessarily the station's own
+        /// install directory. Rooting it here, the same way RosterPath and
+        /// SessionCachePath are rooted by their caller, keeps it predictable
+        /// regardless of how the station was launched (#22 review).
+        /// </summary>
+        [TestMethod]
+        public void LoadRootsARelativeLogDirectoryAgainstTheApplicationBaseDirectory()
+        {
+            var values = new Dictionary<string, string> { ["LogDirectory"] = @"Logs\Custom" };
+
+            StationOptions options = StationOptions.Load(BuildConfiguration(values));
+
+            string expected = System.IO.Path.GetFullPath(System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, @"Logs\Custom"));
+            Assert.AreEqual(expected, options.LogDirectory);
+            Assert.IsTrue(System.IO.Path.IsPathRooted(options.LogDirectory));
+        }
+
+        [TestMethod]
+        public void LoadFallsBackToTheDefaultWhenLogDirectoryIsWhitespace()
+        {
+            var values = new Dictionary<string, string> { ["LogDirectory"] = "   " };
+
+            StationOptions options = StationOptions.Load(BuildConfiguration(values));
+
+            Assert.AreEqual(
+                System.Environment.ExpandEnvironmentVariables(@"%LocalAppData%\RoverLink\Station\Logs"),
+                options.LogDirectory);
+        }
+
         [TestMethod]
         public void LoadFallsBackToTheDefaultWhenAnIntegerKeyIsPresentButMalformed()
         {
