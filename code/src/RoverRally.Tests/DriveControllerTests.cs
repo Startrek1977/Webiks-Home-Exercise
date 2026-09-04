@@ -472,6 +472,54 @@ namespace RoverRally.Tests
             Assert.IsFalse(DriveController.VehicleReportsStopped(false, lastFrame, now));
         }
 
+        /// <summary>
+        /// As of #35 a rover's arm/latch state lives in its own
+        /// DriveController instance, addressed via DriveControllerRegistry -
+        /// not a single controller shared across the fleet. These two tests
+        /// pin down what that buys: stopping one rover cannot touch another's
+        /// state, and a stopped rover's state survives the station addressing
+        /// a different vehicle for a while and then coming back.
+        /// </summary>
+        [TestMethod]
+        public void StoppingOneRoversControllerDoesNotAffectAnotherRoversController()
+        {
+            DriveController falafel = ArmedController();
+            DriveController sandstorm = new DriveController();
+            StationCommand rearm;
+            Assert.IsTrue(sandstorm.TryToggleArm(SandstormId, false, Now, Now, 0, out rearm));
+
+            falafel.EngageEmergencyStop();
+
+            Assert.IsTrue(falafel.IsEmergencyStopLatched, "Falafel should be latched.");
+            Assert.IsFalse(sandstorm.IsEmergencyStopLatched,
+                           "Stopping Falafel latched Sandstorm's independent controller too.");
+            Assert.IsTrue(sandstorm.IsArmed, "Stopping Falafel disarmed Sandstorm's independent controller too.");
+        }
+
+        [TestMethod]
+        public void ALatchedRoversControllerSurvivesAddressingADifferentRoverAndSwitchingBack()
+        {
+            DriveController falafel = ArmedController();
+            falafel.EngageEmergencyStop();
+
+            DriveController sandstorm = new DriveController();
+            StationCommand rearm;
+            Assert.IsTrue(sandstorm.TryToggleArm(SandstormId, false, Now, Now, 0, out rearm));
+            for (int tick = 0; tick < 10; tick++)
+            {
+                sandstorm.NextDriveCommand(SandstormId, false, Now, Now, FullThrottle, 0);
+            }
+
+            Assert.IsTrue(falafel.IsEmergencyStopLatched,
+                          "Falafel's latch was lost while the station addressed Sandstorm instead.");
+
+            StationCommand stillHeld = falafel.NextDriveCommand(FalafelId, false, Now, Now, FullThrottle, FullThrottle);
+
+            Assert.IsTrue(stillHeld.EmergencyStop,
+                          "Falafel's stop was not reasserted on the first tick after switching back to it.");
+            Assert.IsFalse(stillHeld.Armed);
+        }
+
         private static DriveController ArmedController()
         {
             DriveController controller = new DriveController();

@@ -372,6 +372,55 @@ This landed on net48 and needed no retargeting, which is why it went first.
    `StillLatchesWhenAPreviouslyReportingRoverGoesSilent` pins down so the fix
    cannot swing the other way into never latching a real silence-onset stop.
 
+   **`#35` closes the question this interim guard deliberately left open.**
+   `DriveController` itself needed no logic changes at all - every public
+   method already took `roverId` on every call, which is what made the
+   freshness guard above possible in the first place. What it was missing was
+   never being asked to hold more than one rover's state at a time. `MainWindow`
+   now goes through a new `DriveControllerRegistry` (`RoverRally.Core.Control`)
+   instead of holding one shared `DriveController` field: a thin
+   `Dictionary<byte, DriveController>` that hands back the same instance for
+   the same rover id every time, creating one on first use. Nothing needs to
+   be explicitly "restored" on a selection change - a rover's controller is
+   never thrown away to begin with, so switching away and back finds it
+   exactly as it was left. `ArmButton`'s label and the drive-state indicator
+   were previously updated ad hoc at three separate call sites (`Arm_Click`,
+   `EmergencyStop_Click`, the drive timer's own adoption branch) and not at
+   all on a bare selection change, which is exactly why the button could
+   describe a different rover than the one on screen. Both are now read from
+   one `UpdateDriveDisplay()` method (renamed from `UpdateDriveStateText`)
+   called from every place selection or state can change, including the
+   `SelectedRover` property-changed handler that previously only refreshed
+   the text.
+
+   **The non-selected-rover question the interim guard left open is answered
+   as "one vehicle under command," not "a fleet under command."** The drive
+   timer still addresses only whichever rover is selected, exactly as before;
+   it does not loop over the roster transmitting held stops to vehicles that
+   aren't on screen. Not transmitting is not the same as not latching, per the
+   original `#35` text: a deselected, previously-stopped rover's own
+   `DriveController` still holds `IsEmergencyStopLatched = true` in memory the
+   entire time it isn't addressed, so reselecting it reasserts the stop on the
+   very next tick rather than needing to be told about it again. This was the
+   owner's explicit call, not mine to make unilaterally - broadening to a
+   fleet-wide transmit loop is a materially larger claim about what this
+   station does than the exercise asked for.
+
+   `DriveControllerTests` gained two cases pinning down exactly the isolation
+   this issue is about: `StoppingOneRoversControllerDoesNotAffectAnotherRoversController`
+   and `ALatchedRoversControllerSurvivesAddressingADifferentRoverAndSwitchingBack`
+   (the direct "selection change while another vehicle is latched" case the
+   acceptance criteria ask for). A new `DriveControllerRegistryTests` covers
+   the registry itself - same id returns the same instance, different ids
+   return different instances, a fresh instance starts unarmed and unlatched,
+   and arming one rover through the registry never arms another. I checked
+   the registry tests were worth having by mutating `For` to always return one
+   shared instance and rebuilding: two of the four went red, on exactly the
+   assertions that matter (different ids sharing a controller; arming one
+   arming the other) - then rebuilt clean from reverted source before trusting
+   the full suite again, per the stale-`bin` lesson `#20`'s mutation testing
+   already cost me once.
+
 4. **The geofence alert named the wrong rover (#4).** Not something Dana
    flagged - I found it reading `GeofenceMonitor` while working out what else
    in the station shared state the way `DriveController` used to. `IsOutside`
@@ -762,6 +811,8 @@ needed for #21 - it closes against work already covered here.
 | Codec test oracle | Mirror of the simulator's writer; golden bytes; both | Both | A mirror alone shares any transcription error with the implementation, so by construction it cannot detect one |
 | Where the emergency stop latch lives | Make the simulator latch; hold it in `MainWindow`; extract a controller into Core | Extract `DriveController` into Core | The simulator stands in for firmware that cannot be changed in the field, and the vehicle is documented as level-triggered, so the latch belongs to the transmitter. Leaving it in code-behind would have left the one safety-critical control in the solution untestable |
 | Re-arming with the throttle raised | Allow it; snap the slider to zero; refuse | Refuse, and say why | The operator pressing the button is the marshal standing on the track. Clearing the latch into a raised slider drives the vehicle at them, which is the hazard the ops guide already warns about |
+| Where per-rover drive state is keyed (#35) | A bare `Dictionary<byte, DriveController>` field on `MainWindow`; a new `DriveControllerRegistry` in Core | `DriveControllerRegistry` in `RoverRally.Core.Control` | `DriveController` was already extracted into Core specifically so `RoverRally.Tests` could reach it without a WPF reference; a lookup-and-cache concern that only MainWindow could exercise would have put the one thing #20 deliberately made testable back behind an untestable wall. `DriveController.cs` itself needed zero logic changes - it already took `roverId` on every call |
+| Held stops for non-selected rovers (#35) | Transmit to every previously-stopped rover every tick ("fleet under command"); transmit only to the selected rover, same as today | One vehicle under command | Per-rover state means a deselected rover's latch persists in memory and reasserts itself the instant it's reselected, without the station needing to keep addressing vehicles it isn't displaying. Looping the drive timer over the whole roster is a materially larger claim about what this station does than the exercise asked for, and the issue itself steers away from it |
 
 ---
 

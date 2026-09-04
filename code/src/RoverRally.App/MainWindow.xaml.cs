@@ -27,10 +27,10 @@ namespace RoverRally.App
         private DispatcherTimer _driveTimer;
         private GeofenceMonitor _geofence;
 
-        private readonly DriveController _drive = new DriveController();
+        private readonly DriveControllerRegistry _driveControllers = new DriveControllerRegistry();
 
         /// <summary>
-        /// UpdateDriveStateText runs on every telemetry frame for the selected
+        /// UpdateDriveDisplay runs on every telemetry frame for the selected
         /// rover, so a brush built per frame is avoidable allocation on the UI
         /// thread. Frozen so one instance can be shared.
         /// </summary>
@@ -76,7 +76,7 @@ namespace RoverRally.App
             Fleet.Bind(_vm);
             Settings.Bind(_vm);
 
-            UpdateDriveStateText();
+            UpdateDriveDisplay();
         }
 
         private void LoadRoster()
@@ -144,15 +144,18 @@ namespace RoverRally.App
         }
 
         /// <summary>
-        /// The drive state line names a particular vehicle, so it has to follow
+        /// The drive display names a particular vehicle, so it has to follow
         /// the selection rather than wait for that vehicle's next frame. A rover
         /// that is not transmitting would otherwise leave the previous rover's
         /// state on screen indefinitely, under the new rover's name - which is
-        /// precisely the confusion this indicator exists to prevent.
+        /// precisely the confusion this indicator exists to prevent. As of #35
+        /// this also picks up the newly selected rover's own arm/latch state
+        /// from its own DriveController, rather than showing a station-wide
+        /// flag that may describe a different vehicle.
         /// </summary>
         private void ViewModel_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == "SelectedRover") UpdateDriveStateText();
+            if (e.PropertyName == "SelectedRover") UpdateDriveDisplay();
         }
 
         private void Telemetry_ConnectionStateChanged(object sender, EventArgs e)
@@ -215,7 +218,7 @@ namespace RoverRally.App
             if (ReferenceEquals(rover, _vm.SelectedRover))
             {
                 _vm.RefreshSelectedReadouts();
-                UpdateDriveStateText();
+                UpdateDriveDisplay();
             }
         }
 
@@ -224,9 +227,10 @@ namespace RoverRally.App
             Rover rover = _vm.SelectedRover;
             if (rover == null || _commands == null) return;
 
-            bool wasLatched = _drive.IsEmergencyStopLatched;
+            DriveController drive = _driveControllers.For(rover.Id);
+            bool wasLatched = drive.IsEmergencyStopLatched;
 
-            StationCommand command = _drive.NextDriveCommand(rover.Id, rover.IsEmergencyStopped, rover.LastFrameUtc,
+            StationCommand command = drive.NextDriveCommand(rover.Id, rover.IsEmergencyStopped, rover.LastFrameUtc,
                                                              DateTime.UtcNow,
                                                              (short)ThrottleSlider.Value,
                                                              (short)SteeringSlider.Value);
@@ -234,10 +238,9 @@ namespace RoverRally.App
             // The latch just adopted a stop the station didn't know about,
             // rather than clearing it (#37). Reflect that on screen
             // immediately rather than waiting for the next frame.
-            if (!wasLatched && _drive.IsEmergencyStopLatched)
+            if (!wasLatched && drive.IsEmergencyStopLatched)
             {
-                ArmButton.Content = "ARM";
-                UpdateDriveStateText();
+                UpdateDriveDisplay();
                 Log.Warn(rover.Name + " reports an emergency stop the station was not holding. " +
                         "Treating it as latched until re-armed.");
             }
@@ -263,14 +266,16 @@ namespace RoverRally.App
                 return;
             }
 
+            DriveController drive = _driveControllers.For(rover.Id);
+
             // Captures whether a stop was in force before the call, whether
             // the station already knew about it or is only now finding out
             // from the vehicle's own telemetry - both count as "cleared" below.
-            bool stopWasHeld = _drive.IsEmergencyStopLatched ||
+            bool stopWasHeld = drive.IsEmergencyStopLatched ||
                               DriveController.VehicleReportsStopped(rover.IsEmergencyStopped, rover.LastFrameUtc, DateTime.UtcNow);
 
             StationCommand command;
-            if (!_drive.TryToggleArm(rover.Id, rover.IsEmergencyStopped, rover.LastFrameUtc, DateTime.UtcNow,
+            if (!drive.TryToggleArm(rover.Id, rover.IsEmergencyStopped, rover.LastFrameUtc, DateTime.UtcNow,
                                      (short)ThrottleSlider.Value, out command))
             {
                 Log.Warn("Re-arm of " + rover.Name + " refused: the throttle is not centred.");
@@ -279,18 +284,17 @@ namespace RoverRally.App
                 return;
             }
 
-            ArmButton.Content = _drive.IsArmed ? "DISARM" : "ARM";
-            UpdateDriveStateText();
+            UpdateDriveDisplay();
 
             _commands.Send(rover.Id, command.Throttle, command.Steering,
                            command.EmergencyStop, command.Armed);
 
-            if (stopWasHeld && !_drive.IsEmergencyStopLatched)
+            if (stopWasHeld && !drive.IsEmergencyStopLatched)
             {
                 Log.Info("Cleared the emergency stop on " + rover.Name + " via re-arm.");
             }
 
-            Log.Info((_drive.IsArmed ? "Armed " : "Disarmed ") + rover.Name + ".");
+            Log.Info((drive.IsArmed ? "Armed " : "Disarmed ") + rover.Name + ".");
         }
 
         private void EmergencyStop_Click(object sender, RoutedEventArgs e)
@@ -315,13 +319,12 @@ namespace RoverRally.App
             // separate socket owned by CommandSender and are unaffected by it.
             // Refusing to stop an eleven-kilo vehicle because an unrelated
             // listener is rebinding is not a trade this station gets to make.
-            StationCommand command = _drive.EngageEmergencyStop();
+            StationCommand command = _driveControllers.For(rover.Id).EngageEmergencyStop();
             _commands.Send(rover.Id, command.Throttle, command.Steering,
                            command.EmergencyStop, command.Armed);
 
             // The stop disarms, so the button is now the re-arm.
-            ArmButton.Content = "ARM";
-            UpdateDriveStateText();
+            UpdateDriveDisplay();
 
             Log.Warn("Emergency stop sent to " + rover.Name + ". The station will hold it until re-arm.");
 
@@ -340,18 +343,27 @@ namespace RoverRally.App
         }
 
         /// <summary>
-        /// Shows the station's latch beside the vehicle's own reported state.
+        /// Shows the station's latch beside the vehicle's own reported state,
+        /// and keeps the ARM/DISARM label in step with the same controller.
         /// They should agree within a frame or two; a station asserting a stop
         /// that the vehicle is not reporting back is exactly the failure this
-        /// control exists to make visible.
+        /// control exists to make visible. As of #35 "the station's latch"
+        /// means the selected rover's own DriveController, not a station-wide
+        /// flag that could describe a different vehicle - both the text and
+        /// the button are read from it here so they can never drift apart.
         /// </summary>
-        private void UpdateDriveStateText()
+        private void UpdateDriveDisplay()
         {
             Rover rover = _vm.SelectedRover;
+            DriveController drive = rover == null ? null : _driveControllers.For(rover.Id);
 
-            string station = _drive.IsEmergencyStopLatched
-                ? "STATION: STOP LATCHED"
-                : (_drive.IsArmed ? "STATION: ARMED" : "STATION: DISARMED");
+            ArmButton.Content = drive != null && drive.IsArmed ? "DISARM" : "ARM";
+
+            string station = drive == null
+                ? "STATION: DISARMED"
+                : drive.IsEmergencyStopLatched
+                    ? "STATION: STOP LATCHED"
+                    : (drive.IsArmed ? "STATION: ARMED" : "STATION: DISARMED");
 
             string vehicle;
             if (rover == null || rover.LastFrameUtc == DateTime.MinValue) vehicle = "VEHICLE: NO DATA";
@@ -361,7 +373,7 @@ namespace RoverRally.App
             if (_latchedStateBrush == null) _latchedStateBrush = (Brush)FindResource("DangerBrush");
 
             DriveStateText.Text = station + "  -  " + vehicle;
-            DriveStateText.Foreground = _drive.IsEmergencyStopLatched || (rover != null && rover.IsEmergencyStopped)
+            DriveStateText.Foreground = (drive != null && drive.IsEmergencyStopLatched) || (rover != null && rover.IsEmergencyStopped)
                 ? _latchedStateBrush
                 : QuietStateBrush;
         }
