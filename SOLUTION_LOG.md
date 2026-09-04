@@ -202,6 +202,85 @@ console so its `Log.Info` calls were visible, logged
 change, through the real `MainWindow.LoadSessionHistory` → `SessionCacheFile.Read`
 path, not a test double.
 
+### Migrating the legacy session cache (#11)
+
+*What did the shipped file still need, once #10/#51 could already read it?*
+
+**What I found.** #10/#51 kept the record layout byte-identical to the old
+x86 one on purpose, so the shipped `session-cache.bin` needed no migration to
+keep reading correctly - offset 4 stayed a reserved gap that `Read` ignores
+and `Append` always writes as zero. That is not the same as the file itself
+being in the new format. I hex-dumped the real 256 bytes again for this issue
+and every record's reserved slot still holds a real, non-zero legacy
+`SessionHandle` value (`0x00001000`, `0x00002000`, ...) left over from the
+x86 process that wrote it. `SessionCacheFile.Read` tolerates that gap
+unconditionally, so the station has never actually needed those bytes to be
+zero - but the issue asks for a converter that produces a genuinely clean
+file, not one that merely gets away with ignoring the old bytes forever.
+
+**What I decided.** `SessionCacheMigrator.MigrateIfNeeded`, called once from
+`MainWindow.LoadSessionHistory` ahead of `SessionCacheFile.Read`, so a site's
+history is upgraded the first time they run the new station with no manual
+step. It reads the file with its own explicit offset table - independent of
+`SessionCacheFile`'s private constants, matching the issue's stated legacy
+layout, and verified against the same real bytes - and treats a record's
+reserved slot being non-zero as the one signal that distinguishes an
+unconverted file from a converted one, since that is the only byte-level
+difference between the two formats. If every record's slot is already zero
+it does nothing and says so in the log; otherwise it backs the original up
+to a fixed `<path>.legacy` sibling first, then zeroes the slot in every
+record and writes the result back to the original path. It refuses outright,
+without touching anything, if the file's length isn't a whole multiple of
+the 32-byte record size (truncated or corrupt input), or if a `.legacy`
+backup already exists - a stray leftover backup is treated as evidence a
+previous run already migrated the file, not something safe to overwrite.
+
+**How I verified it.** `SessionCacheMigratorTests` covers all of it against
+the real 256-byte shipped fixture: a successful migration (backup created and
+byte-identical to the original, every reserved slot zeroed, and
+`SessionCacheFile.Read` on the result still returning the same 8 runs'
+`RoverId`/`StartedUtcTicks`/`EndedUtcTicks`/`DistanceCm`/`PeakSpeedCmS` values
+`SessionCacheFileTests` already pins down), the already-migrated no-op
+(nothing written, no backup created), a missing file, a truncated file
+(throws, original untouched), and a pre-existing backup (throws, neither
+file touched). I also added a case to `SessionCacheFileTests` confirming
+`SessionCacheRecord.FromTicks` still clamps ticks below `DateTime.MinValue`
+instead of throwing, since the issue asked me to confirm that guard rather
+than assume it.
+
+Then, same discipline as #10/#51: I ran the real station against the real
+simulator rather than trusting the test suite alone. First launch logged
+`Migrated 8 legacy session cache record(s) at ...; original preserved at
+...session-cache.bin.legacy.`, followed by the usual `Loaded 8 run(s) from
+the session cache.`; a second launch logged `... has no legacy
+session-handle bytes left; nothing to migrate.` instead, and still loaded
+all 8 runs. Both runs only touched the build-output copy under
+`bin\Debug\Data\` - `git status` confirmed the source-controlled
+`RoverRally.App/Data/session-cache.bin` fixture was untouched, since the
+station always resolves the cache path from
+`AppDomain.CurrentDomain.BaseDirectory`.
+
+Two automated reviews on the pull request each caught a real gap. Codex
+pointed out that `LoadSessionHistory` shared one `try` block across
+`MigrateIfNeeded` and `Read`, so a migration failure - a legacy file with a
+torn trailing record, say - would skip the read entirely and show no history
+at all, where `Read` alone would have discarded the torn bytes and shown
+every complete run. I reproduced it before fixing it: crafted a 37-byte file
+(one full record plus a torn tail) in the build-output `Data\` folder and ran
+the real station against it. It logged the migration failure and then still
+logged `Loaded 1 run(s) from the session cache.` - the fix was splitting the
+two calls into their own `try`/`catch` blocks so a migration failure no
+longer prevents the fallback read. Copilot separately caught that the write
+itself - `File.Copy` for the backup, then `File.WriteAllBytes` straight onto
+the original path - was two non-atomic steps; an interruption between them
+(disk full, power loss, AV lock) could leave a half-written
+`session-cache.bin` behind, and since the backup would already exist by
+then, a later run would refuse to retry rather than clean it up. Both steps
+are now one `File.Replace` call - write the converted bytes to a temp file,
+then swap it into place with the backup created in the same atomic
+operation - so an interruption leaves either the untouched original or the
+fully-converted file, never something in between.
+
 ---
 
 ## The Telemetry SDK
@@ -843,6 +922,8 @@ needed for #21 - it closes against work already covered here.
 | Re-arming with the throttle raised | Allow it; snap the slider to zero; refuse | Refuse, and say why | The operator pressing the button is the marshal standing on the track. Clearing the latch into a raised slider drives the vehicle at them, which is the hazard the ops guide already warns about |
 | Where per-rover drive state is keyed (#35) | A bare `Dictionary<byte, DriveController>` field on `MainWindow`; a new `DriveControllerRegistry` in Core | `DriveControllerRegistry` in `RoverRally.Core.Control` | `DriveController` was already extracted into Core specifically so `RoverRally.Tests` could reach it without a WPF reference; a lookup-and-cache concern that only MainWindow could exercise would have put the one thing #20 deliberately made testable back behind an untestable wall. `DriveController.cs` itself needed zero logic changes - it already took `roverId` on every call |
 | Held stops for non-selected rovers (#35) | Transmit to every previously-stopped rover every tick ("fleet under command"); transmit only to the selected rover, same as today | One vehicle under command | Per-rover state means a deselected rover's latch persists in memory and reasserts itself the instant it's reselected, without the station needing to keep addressing vehicles it isn't displaying. Looping the drive timer over the whole roster is a materially larger claim about what this station does than the exercise asked for, and the issue itself steers away from it |
+| Where the legacy session cache migration runs (#11) | Auto-run on every station startup, ahead of `Read`; a library method only exercised by tests; a separate console tool | Auto-run on startup | A site's history has to survive with zero manual step, and `LoadSessionHistory`'s existing try/catch already keeps the app green if migration fails. A separate console tool is one more moving part to keep green for something that only ever needs to run once per file |
+| How to detect an already-migrated session cache (#11) | Add a version/marker to the format; treat a record's reserved slot already being zero as the signal; always reprocess with no detection at all | Reserved slot already zero | #10/#51 kept the on-disk layout byte-identical to the legacy one for compatibility, so the reserved slot's zero-ness is the only byte-level difference between "legacy" and "migrated" bytes - the one signal available without changing the wire format itself |
 
 ---
 

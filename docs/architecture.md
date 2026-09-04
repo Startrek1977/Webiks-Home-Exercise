@@ -1,8 +1,8 @@
 # RoverRally Station — Architecture Notes
 
 **Last substantially updated:** June 2020 (ports and framework notes touched up
-2022; telemetry codec, emergency stop latch, per-rover drive state and no-fix
-frame handling 2026)
+2022; telemetry codec, emergency stop latch, per-rover drive state, no-fix
+frame handling and the legacy session cache migration 2026)
 
 ---
 
@@ -62,6 +62,11 @@ record is a fixed 32-byte, fixed-offset layout (`SessionCacheFile.RecordSize`)
 that is the same on x86 and x64 - it no longer depends on marshalling a struct,
 which is what let a vendor SDK pointer field silently change the on-disk size
 by platform (see "Moving to 64-bit" in `SOLUTION_LOG.md`).
+
+On startup the station also migrates any file that still carries real,
+non-zero legacy session-handle bytes in that reserved gap: `SessionCacheMigrator`
+backs the original up to a `.legacy` sibling first, then zeroes the gap in
+place (see "Migrating the legacy session cache" in `SOLUTION_LOG.md`).
 
 ---
 

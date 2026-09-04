@@ -137,6 +137,18 @@ namespace RoverRally.Tests
         }
 
         [TestMethod]
+        public void StartedUtcClampsToMinValueForOutOfRangeTicks()
+        {
+            // FromTicks guards ticks outside DateTime's valid range so a
+            // corrupt or pre-epoch record can't throw when its history is
+            // just being displayed.
+            SessionCacheRecord record = new SessionCacheRecord();
+            record.StartedUtcTicks = long.MinValue;
+
+            Assert.AreEqual(DateTime.MinValue, record.StartedUtc);
+        }
+
+        [TestMethod]
         public void ReadReturnsEmptyListWhenFileIsMissing()
         {
             IList<SessionCacheRecord> records = SessionCacheFile.Read(TempCachePath());
