@@ -1236,9 +1236,12 @@ just "whatever happened to already be there."
 where I went looking for bugs - the codec, `DriveController`, `Rover`,
 `GeofenceMonitor` - and thinner everywhere I didn't have a specific defect to
 chase. `TrackView`, `StationSettings`, and the WPF code-behind layer in
-general have no coverage at all, in part because `RoverRally.Tests` can't
-reference `RoverRally.App`. Worth a real pass rather than only adding tests
-as a side effect of fixing something else.
+general have no coverage at all: `RoverRally.Tests` doesn't currently
+reference `RoverRally.App` - both projects target `net8.0-windows` since
+#15, so nothing stops adding that `ProjectReference`, it would just need real
+WPF test setup (an STA thread, a dispatcher) that nothing in this suite has
+needed so far. Worth a real pass rather than only adding tests as a side
+effect of fixing something else.
 
 **A real documentation audit (#26).** `README.md`, `docs/architecture.md`,
 and `docs/operations-guide.md` all still carry x86/net48 wording in spots
