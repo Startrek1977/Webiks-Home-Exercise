@@ -60,6 +60,7 @@ namespace RoverRally.App
             LoadSessionHistory();
             StartLink();
 
+            StationSettings.CleanUpAbandonedProfileKeys();
             _vm.SpeedUnit = StationSettings.PreferredSpeedUnit;
 
             int lastRover = StationSettings.LastSelectedRoverId;
