@@ -657,6 +657,36 @@ read-only text box.
 orphaned rather than deleted. Rebuilt the solution and reran the test suite
 after the deletion - still 76 passed, 1 skipped, 0 failed.
 
+**#9 closes the `RunSnapshot` half of this, and with it the last
+`BinaryFormatter` usage in the solution.** Same re-check discipline as #7 and
+#8: a fresh repo-wide grep for `RunSnapshot`, `RunSnapshotEntry`, and
+`BinaryFormatter` turned up nothing outside `RunSnapshot.cs` itself -
+`StationMonitorService`, its only caller, was already gone by #8, so nothing
+had grown a new dependency on it in the meantime. `Core/Monitoring/RunSnapshot.cs`
+is gone, and with it `Core/Monitoring/` itself, now empty. No `.csproj` edit
+was needed - the same implicit SDK-style glob that picked the file up without
+an explicit `<Compile Include>` stops picking it up once it's deleted.
+
+This one is worth calling out on security grounds specifically, not just as
+migration cleanup. `RunSnapshot.Deserialize` fed bytes taken straight off
+`StationMonitorService`'s Remoting channel into `BinaryFormatter.Deserialize`.
+`BinaryFormatter` deserializes by walking arbitrary type metadata embedded in
+the payload itself and instantiating whatever it names - it does not just
+read data into a known shape, it lets the payload pick the shape. Feeding
+that untrusted network bytes is a textbook remote-code-execution vector, which
+is exactly why .NET disables `BinaryFormatter` by default starting with .NET 8
+and removes it outright in .NET 9. Even setting the .NET-version deprecation
+aside, this would have been worth fixing on its own terms - the RCE risk does
+not depend on which runtime is hosting it, only on the fact that untrusted
+bytes reached `Deserialize` at all. Removing the caller in #8 closed the
+network exposure; removing the type itself here closes the possibility of a
+future caller reopening it by construction, rather than by convention.
+
+Rebuilt the solution and reran the test suite after the deletion - 87 passed,
+1 skipped, 0 failed (the pass count has grown since #8's 76 as later issues
+added coverage; the skip and failure counts are what matter here, and both
+are unchanged).
+
 ---
 
 ## Logging
