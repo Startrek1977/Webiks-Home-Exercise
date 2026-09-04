@@ -63,9 +63,11 @@ namespace RoverRally.Core.Logging
         /// from <paramref name="options"/>. Call once, from
         /// App.xaml.cs.OnStartup. If the rolling file sink can't be opened -
         /// a bad LogDirectory, no permission, a full disk - that failure is
-        /// reported to the console/debugger and swallowed rather than
-        /// thrown, so a fault here never takes the station down; logging
-        /// simply continues without the file sink.
+        /// reported to both the console and the attached debugger (a
+        /// normally-installed station has no debugger, so the console is
+        /// what an operator who launched from a shell actually sees) and
+        /// swallowed rather than thrown, so a fault here never takes the
+        /// station down; logging simply continues without the file sink.
         /// </summary>
         public static void Configure(StationOptions options)
         {
@@ -81,9 +83,10 @@ namespace RoverRally.Core.Logging
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine(
-                    "Could not open the log file under " + options.LogDirectory +
-                    "; continuing without file logging. " + ex.Message);
+                string message = "Could not open the log file under " + options.LogDirectory +
+                    "; continuing without file logging. " + ex.Message;
+                Console.WriteLine(message);
+                System.Diagnostics.Debug.WriteLine(message);
                 logger = BuildLogger(options.LogDirectory, minimumSerilogLevel, includeFileSink: false);
             }
 

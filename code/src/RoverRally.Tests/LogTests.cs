@@ -28,7 +28,17 @@ namespace RoverRally.Tests
             string directory = Path.Combine(Path.GetTempPath(), "roverrally-log-footprint-" + Guid.NewGuid().ToString("N"));
             const long sizeLimitBytes = 2048;
             const int retainedFileCountLimit = 3;
-            long bound = sizeLimitBytes * retainedFileCountLimit;
+
+            // Serilog checks the size limit BEFORE writing an event, so an
+            // event that starts just under the limit is still appended in
+            // full and can push a single file some bytes past it before the
+            // *next* event triggers the roll. This allowance covers one such
+            // straddling event per retained file - generous relative to this
+            // test's ~110-byte rendered lines - without weakening the bound
+            // enough to miss a real retention regression, which would blow
+            // past it by orders of magnitude, not a few hundred bytes.
+            const long maxSingleEventOverrunBytes = 512;
+            long bound = (sizeLimitBytes + maxSingleEventOverrunBytes) * retainedFileCountLimit;
 
             try
             {
