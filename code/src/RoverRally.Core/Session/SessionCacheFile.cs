@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Microsoft.Extensions.Logging;
 using RoverRally.Core.Logging;
 
 namespace RoverRally.Core.Session
@@ -28,13 +29,19 @@ namespace RoverRally.Core.Session
         private const int DistanceCmOffset = 24;
         private const int PeakSpeedCmSOffset = 28;
 
+        /// <summary>Delegates to the <see cref="ILogger"/> overload (#22) using the static facade's own logger, so this call site's behaviour is unchanged.</summary>
         public static IList<SessionCacheRecord> Read(string path)
+        {
+            return Read(path, Log.CreateLogger(nameof(SessionCacheFile)));
+        }
+
+        public static IList<SessionCacheRecord> Read(string path, ILogger logger)
         {
             List<SessionCacheRecord> records = new List<SessionCacheRecord>();
 
             if (!File.Exists(path))
             {
-                Log.Info("No session cache at " + path + ", starting empty.");
+                logger.LogInformation("No session cache at " + path + ", starting empty.");
                 return records;
             }
 
@@ -44,7 +51,7 @@ namespace RoverRally.Core.Session
 
             if (trailingBytes != 0)
             {
-                Log.Warn(string.Format(
+                logger.LogWarning(string.Format(
                     "Session cache at {0} is {1} byte(s) short of a whole number of {2}-byte records; "
                     + "the trailing {1} byte(s) look truncated or corrupted and are being discarded.",
                     path, trailingBytes, RecordSize));
@@ -63,7 +70,7 @@ namespace RoverRally.Core.Session
                 records.Add(record);
             }
 
-            Log.Info(string.Format("Loaded {0} run(s) from the session cache.", records.Count));
+            logger.LogInformation(string.Format("Loaded {0} run(s) from the session cache.", records.Count));
             return records;
         }
 

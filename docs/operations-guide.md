@@ -120,8 +120,17 @@ radio, not so you can change them.
 
 ## Logs
 
-The station writes a rolling log to `C:\ProgramData\RoverRally\station.log`.
-Attach it to any fault report — it is the first thing anyone will ask for.
+The station writes a rolling log to `%LocalAppData%\RoverLink\Station\Logs\station-<date>.log`
+— that is, under your own Windows profile, not `C:\ProgramData`, so no admin
+rights are needed to read it either. It also still prints to the console if
+you started the station from one. Attach the log file to any fault report —
+it is the first thing anyone will ask for.
+
+The log rolls onto a new file once a day or once a file passes 5 MB,
+whichever comes first, and only the 10 most recent files are kept — so the
+total footprint never exceeds about 50 MB, even on a station left running
+for a week without anyone touching it. A site that wants the log written
+somewhere else can set `LogDirectory` in the station's configuration file.
 
 ---
 

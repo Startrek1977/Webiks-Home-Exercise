@@ -122,4 +122,3 @@ needing to keep addressing vehicles it is not displaying.
   made it testable. Applying a decoded frame's fields to the rover model came
   out in #36 the same way, into `Core/Models/Rover.ApplyFrame`. Geofence
   alerting and the link lifecycle are still in the code-behind.
-- There is no logging to disk from the application itself.

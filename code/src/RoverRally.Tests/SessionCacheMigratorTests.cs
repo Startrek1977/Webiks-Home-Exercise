@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoverRally.Core.Session;
+using RoverRally.Tests.TestSupport;
 
 namespace RoverRally.Tests
 {
@@ -162,6 +164,30 @@ namespace RoverRally.Tests
 
                 Assert.IsFalse(File.Exists(backupPath));
                 CollectionAssert.AreEqual(truncated, File.ReadAllBytes(path));
+            }
+            finally
+            {
+                DeleteIfExists(path);
+                DeleteIfExists(backupPath);
+            }
+        }
+
+        [TestMethod]
+        public void LogsInformationWhenAlreadyMigratedViaTheInjectedLogger()
+        {
+            string path = TempCachePath();
+            string backupPath = path + ".legacy";
+            try
+            {
+                SessionCacheRecord record = new SessionCacheRecord();
+                record.RoverId = 1;
+                record.DistanceCm = 100;
+                SessionCacheFile.Append(path, record);
+                CapturingLogger logger = new CapturingLogger();
+
+                SessionCacheMigrator.MigrateIfNeeded(path, logger);
+
+                Assert.IsTrue(logger.HasEntry(LogLevel.Information, "nothing to migrate"));
             }
             finally
             {

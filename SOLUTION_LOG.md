@@ -1023,7 +1023,111 @@ are unchanged).
 
 *What did you build, and what decisions did you make about it?*
 
+**What I built (#22).** `Core/Logging/Log.cs` was `Console.WriteLine`/
+`Debug.WriteLine` only, so unless a developer had Visual Studio's Output
+window open, every log line went nowhere - exactly Dana's complaint, and no
+help at all when she needs something to attach to a fault report from a
+laptop in a tent that nobody is watching. `Log` is now a thin composition
+root over Serilog: `Log.Configure(StationOptions)`, called once from
+`App.xaml.cs.OnStartup`, builds a pipeline writing to the console, the
+attached debugger (preserving the exact behaviour the old docstring
+promised), and a rolling file - `station-.log` under a configurable
+directory, `RollingInterval.Day` plus `rollOnFileSizeLimit`, so a file rolls
+on whichever comes first. The existing static `Log.Debug/Info/Warn/Error(...)`
+facade kept its exact signatures and now routes through that same pipeline,
+so the ~30 call sites in `MainWindow`, `App.xaml.cs`, `StationSettings`,
+`StationOptions` and `RoverRoster` needed zero changes to start landing in
+the file.
 
+**The hard constraint was the disk, not the plumbing.** The brief is blunt
+about it - a few gigabytes free at best, unattended for a week - so I fixed
+the rolling policy rather than exposing it: `Log.FileSizeLimitBytes` (5 MB)
+and `Log.RetainedFileCountLimit` (10). Serilog's retention counts every file
+matching the rolling pattern, day-rolls and size-rolls alike, and deletes the
+oldest beyond the count, so the worst case is exactly `5 MB x 10 = 50 MB`,
+regardless of how many days that spans - about 2% of "a few gigabytes," with
+room to spare for the site's other files. `LogTests.WritingManyLogEntriesNeverExceedsTheConfiguredRetentionFootprint`
+demonstrates this rather than leaving it asserted in prose: it points a real
+Serilog logger at a temp directory with a small size/retention pair, writes
+roughly 400 KB of lines - two orders of magnitude past that pair's own 6 KB
+bound - and asserts the total bytes actually left on disk never exceeds it.
+If Serilog's retention ever silently stopped deleting old files, that test
+goes red; a worst-case number that's only ever been typed into a doc, never
+exercised, is not something I was willing to put in this section.
+
+Log directory and minimum level are the two things the acceptance criteria
+ask to be configurable, and only those two are: `StationOptions.LogDirectory`,
+read from a new `"LogDirectory"` key in `appsettings.json`'s existing
+`"Station"` section, right next to the `"LogLevel"` key that already drove
+nothing but the console/debug facade before this issue. The default -
+`%LocalAppData%\RoverLink\Station\Logs`, expanded via
+`Environment.ExpandEnvironmentVariables` - is per-user and does not sit under
+the exe's own install location, which may be `Program Files`, unwritable by
+a non-admin operator; it deliberately mirrors the `HKCU\Software\RoverLink\
+Station\...` registry namespace #17 already established for the same
+non-admin-writable reason.
+
+**Failure to open the file must not take the station down.** `Log.Configure`
+wraps the Serilog build in try/catch: if the file sink can't be created - bad
+path, no permission, a full disk - the failure is written to the surviving
+console/debug sinks and the pipeline continues without the file sink, rather
+than the exception propagating into `App.xaml.cs.OnStartup` and killing
+startup outright. `LogTests.ConfigureDoesNotThrowWhenTheLogDirectoryCannotBeCreated`
+reproduces the failure with a real file sitting where a directory is
+expected (so `Directory.CreateDirectory` inside the File sink genuinely
+throws) and asserts `Configure` survives it and logging still works.
+
+**Testability without a repo-wide rewrite.** The agreed scope named four
+things: telemetry, the emergency-stop path, battery, and session cache.
+`TelemetryClient` and `CommandSender` are real instance classes, so they got
+straightforward constructor-injected `ILogger` (defaulting to
+`Log.CreateLogger<T>()` when not supplied, so nothing else that constructs
+them needs to change). `BatteryGauge`, `SessionCacheFile` and
+`SessionCacheMigrator` are static utilities with call sites all over the
+place, so each gained a new `ILogger`-taking overload with the real logic,
+with the original overload becoming a one-line delegate through
+`Log.CreateLogger(...)`. That kept every existing call site - production and
+test - compiling unchanged, while giving new tests a real injection point.
+`DriveController` - the emergency-stop path itself - stayed untouched:
+that logging lives in `MainWindow.xaml.cs` today and stays there, on the
+static facade; `DriveControllerTests` already covers the safety invariant
+through state and return values, and the owner confirmed this class doesn't
+need to change for this issue.
+
+`BatteryGauge` had zero logging before this issue - it's pure arithmetic, no
+failure mode of its own to report. Rather than thread a logger through it
+for testability's sake alone, I gave it something real to say: `ToPercent`
+now logs a Warning whenever the *raw* computed percentage falls outside
+0-100 before clamping, in either direction - that's not "the pack is flat or
+full," it's the reading itself being implausible, which is exactly the
+sensor-failure case #2 already clamps silently. A flat pack reading 0 mV
+(the simulator's own failure sentinel) now says so in the log instead of
+just showing 0% with no explanation - I saw this fire for real during manual
+verification below, on the very first run.
+
+**How I verified it, beyond the unit tests.** Ran the real simulator and the
+real `RoverRally.Station.exe`, launched from a shell so the console sink was
+visible for comparison against the file. Both carried the same lines,
+byte-for-byte apart from Serilog's own formatting, including a genuine
+`[WRN] Battery reading 0 mV computed to -250% before clamping; a sensor may
+be failing.` from one of the simulated rovers - the new behaviour working
+against a real signal, not a crafted one. `%LocalAppData%\RoverLink\Station\
+Logs\station-<date>.log` existed and matched. `dotnet test` - full suite
+green (the pre-existing skip aside), including the two `LogTests` above.
+
+I grepped the two other docs for "log" while I was in there, since a doc
+that describes the old, nonexistent behaviour is worse than one that says
+nothing. `docs/operations-guide.md`'s "Logs" section already claimed a
+rolling log existed - at `C:\ProgramData\RoverRally\station.log`, a path
+that was never real and, being under `ProgramData`, would have needed admin
+rights this issue deliberately avoids requiring. Corrected it to the real
+path and added the retention numbers an operator actually needs (roll
+triggers, 50 MB worst case, the `LogDirectory` override). `docs/architecture.md`'s
+"Known rough edges" list carried "There is no logging to disk from the
+application itself," which this issue now makes untrue, so I removed it
+rather than leave a fixed rough edge in a list of current ones. Neither is
+the `App.config` staleness CLAUDE.md already defers to #26 - that's a
+different claim in the same two files, still accurate, left alone.
 
 ---
 
@@ -1183,6 +1287,30 @@ and `TrackNorth` malformed values, relaunched the real station against the
 simulator, and confirmed the log showed both `Error` lines naming the bad
 key and value before the station came up listening on the default port
 14550 - then restored the file.
+
+**#22** needed a different shape of testability than everything above: not
+"extract a decision out of `MainWindow` so it can be reached at all" but
+"give a handful of classes an injection point without rewriting the ones
+that don't need one." `TelemetryClient` and `CommandSender` - real instance
+classes with a single production construction site each - took
+constructor-injected `ILogger`, defaulting to the static facade when not
+supplied so nothing else that builds them needed to change; neither had any
+test coverage before this issue, so `TelemetryClientTests`/
+`CommandSenderTests` are new. `BatteryGauge`, `SessionCacheFile` and
+`SessionCacheMigrator` are static utilities with call sites scattered across
+the app and the existing test suite, so each gained a new `ILogger`-taking
+overload carrying the real logic, with the original overload reduced to a
+one-line delegate - every existing call site, production and test alike,
+kept compiling unchanged, and the new tests inject a hand-rolled
+`CapturingLogger` (this repo has no mocking framework, and one class did not
+earn it one) directly into the new overload. `DriveController` - named in
+the issue as "the emergency-stop path" - deliberately got none of this: that
+logging stays in `MainWindow.xaml.cs` on the static facade, per the owner,
+and `DriveControllerTests` above already covers the actual safety invariant
+through state and return values, not logging. The rolling-file mechanism
+itself is demonstrated, not just unit-tested against a mock sink - see
+`LogTests` in the Logging section above, which writes real bytes to a real
+temp directory and measures what's left after retention runs.
 
 ---
 

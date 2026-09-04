@@ -20,10 +20,11 @@ namespace RoverRally.App
                 .AddJsonFile("appsettings.json", optional: false)
                 .Build();
 
-            StationSettings.Configure(StationOptions.Load(configuration));
+            StationOptions options = StationOptions.Load(configuration);
+            StationSettings.Configure(options);
+            Log.Configure(options);
 
             StationName = StationSettings.StationName;
-            Log.MinimumLevel = StationSettings.LogLevel;
 
             Log.Info("Station starting up: " + StationName + " (operator " + OperatorName + ")");
         }
@@ -31,6 +32,7 @@ namespace RoverRally.App
         protected override void OnExit(ExitEventArgs e)
         {
             Log.Info("Station shutting down.");
+            Log.Shutdown();
             base.OnExit(e);
         }
     }

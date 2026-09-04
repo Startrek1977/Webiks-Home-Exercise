@@ -1,4 +1,5 @@
 using System.IO;
+using Microsoft.Extensions.Logging;
 using RoverRally.Core.Logging;
 
 namespace RoverRally.Core.Session
@@ -41,9 +42,16 @@ namespace RoverRally.Core.Session
         /// leaves the file untouched if it is missing or already migrated.
         /// Throws <see cref="IOException"/>, leaving the file untouched, if the
         /// file is corrupt/truncated or if a backup from a previous run is
-        /// already present.
+        /// already present. Delegates to the <see cref="ILogger"/> overload
+        /// (#22) using the static facade's own logger, so this call site's
+        /// behaviour is unchanged.
         /// </summary>
         public static bool MigrateIfNeeded(string path)
+        {
+            return MigrateIfNeeded(path, Log.CreateLogger(nameof(SessionCacheMigrator)));
+        }
+
+        public static bool MigrateIfNeeded(string path, ILogger logger)
         {
             if (!File.Exists(path))
             {
@@ -65,7 +73,7 @@ namespace RoverRally.Core.Session
 
             if (IsAlreadyMigrated(raw, count, recordSize))
             {
-                Log.Info("Session cache at " + path + " has no legacy session-handle bytes left; nothing to migrate.");
+                logger.LogInformation("Session cache at " + path + " has no legacy session-handle bytes left; nothing to migrate.");
                 return false;
             }
 
@@ -102,7 +110,7 @@ namespace RoverRally.Core.Session
                 throw;
             }
 
-            Log.Info(string.Format(
+            logger.LogInformation(string.Format(
                 "Migrated {0} legacy session cache record(s) at {1}; original preserved at {2}.",
                 count, path, backupPath));
             return true;

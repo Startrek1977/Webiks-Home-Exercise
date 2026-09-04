@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.IO;
 using Microsoft.Extensions.Configuration;
 using RoverRally.Core.Logging;
 
@@ -28,6 +29,14 @@ namespace RoverRally.Core.Configuration
         public double TrackEast { get; set; }
         public int DriveCommandIntervalMs { get; set; }
         public LogLevel LogLevel { get; set; }
+        public string LogDirectory { get; set; }
+
+        /// <summary>
+        /// Per-user, non-admin-writable, and outside the exe's own install
+        /// location - the station may be installed under Program Files,
+        /// which a non-admin operator cannot write to (#22).
+        /// </summary>
+        private const string DefaultLogDirectory = @"%LocalAppData%\RoverLink\Station\Logs";
 
         public static StationOptions Load(IConfiguration configuration)
         {
@@ -48,7 +57,8 @@ namespace RoverRally.Core.Configuration
                 TrackWest = ReadDouble(section, "TrackWest", 34.9160),
                 TrackEast = ReadDouble(section, "TrackEast", 34.9250),
                 DriveCommandIntervalMs = ReadInt(section, "DriveCommandIntervalMs", 200),
-                LogLevel = ReadLogLevel(section, "LogLevel", LogLevel.Info)
+                LogLevel = ReadLogLevel(section, "LogLevel", LogLevel.Info),
+                LogDirectory = ReadLogDirectory(section, "LogDirectory", DefaultLogDirectory)
             };
         }
 
@@ -80,6 +90,28 @@ namespace RoverRally.Core.Configuration
 
             Log.Error("Station:" + key + " has an invalid value \"" + raw + "\"; using default " + fallback + ".");
             return fallback;
+        }
+
+        /// <summary>
+        /// Unlike the other ReadX helpers, any non-blank string is a
+        /// syntactically "valid" directory, so there is no malformed case to
+        /// log and fall back from - only absent or whitespace-only, which
+        /// use <paramref name="fallback"/>. Both the configured value and
+        /// the fallback are expanded (<c>%LocalAppData%</c> and friends),
+        /// trimmed, and rooted against the application's base directory if
+        /// not already absolute, so callers always receive a real, absolute
+        /// path - not just an expanded one, which a relative value like
+        /// <c>"Logs"</c> would otherwise still be.
+        /// </summary>
+        private static string ReadLogDirectory(IConfigurationSection section, string key, string fallback)
+        {
+            string raw = section[key];
+            string path = string.IsNullOrWhiteSpace(raw) ? fallback : raw;
+            string expanded = Environment.ExpandEnvironmentVariables(path).Trim();
+
+            return Path.IsPathRooted(expanded)
+                ? expanded
+                : Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, expanded));
         }
 
         private static LogLevel ReadLogLevel(IConfigurationSection section, string key, LogLevel fallback)
