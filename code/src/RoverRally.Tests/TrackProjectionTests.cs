@@ -86,6 +86,25 @@ namespace RoverRally.Tests
         }
 
         [TestMethod]
+        public void ProjectsAnInteriorPointCorrectlyWithNonSquareBoundsAndARectangularCanvas()
+        {
+            // Every other case here uses equal lat/lon spans and a square
+            // canvas, so a regression that swaps _width/_height or swaps the
+            // latitude/longitude spans would still pass them all. Unequal
+            // spans (20 x 100) and a rectangular canvas (500 x 200) give x
+            // and y different scale factors (x5 vs x10), so a swap changes
+            // the projected point.
+            TrackProjection projection = new TrackProjection(20, 0, 0, 100, 500, 200);
+
+            double x, y;
+            bool result = projection.TryProject(new TrackPoint(15, 40), out x, out y);
+
+            Assert.IsTrue(result);
+            Assert.AreEqual(200, x);
+            Assert.AreEqual(50, y);
+        }
+
+        [TestMethod]
         public void ReturnsFalseForAPointNorthOfTheMappedArea()
         {
             TrackProjection projection = new TrackProjection(10, 0, 0, 10, 100, 100);

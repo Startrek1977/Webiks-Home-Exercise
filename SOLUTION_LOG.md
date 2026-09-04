@@ -1317,10 +1317,10 @@ classes, describing the repo as it stood when the issue was filed: four
 tests, three single-value happy-path assertions, one asserting a known-wrong
 result. By the time I picked it up that description no longer matched
 reality, the same way #21 found `DriveControllerTests` had already outgrown
-its own ask. `BatteryGaugeTests` (11 tests) and `GeofenceMonitorTests` (6
-tests) grew alongside the #2/#42 clamp fix and the #40 cross-rover leak fix;
-`SpeedConverterTests` (6 tests) grew alongside #3's fix, described just
-above; and `SessionCacheFileTests` already had a case covering
+its own ask. `BatteryGaugeTests` and `GeofenceMonitorTests` grew alongside
+the #2/#42 clamp fix and the #40 cross-rover leak fix; `SpeedConverterTests`
+grew alongside #3's fix, described just above; and `SessionCacheFileTests`
+already had a case covering
 `SessionCacheRecord.FromTicks`'s lower-bound guard from the #11/#51
 session-cache work. `TrackProjection` was the one class the issue's
 description still fit exactly: one test, `PlacesTheStartLine`, `[Ignore]`d
@@ -1334,18 +1334,28 @@ mid-range percent for `BatteryGauge.ToPercent` (the existing
 `ReportsAPercentage` only asserted `>= 0`) plus the exact `IsCritical`
 threshold at 15%/16%; a direct cross-check that `ToKilometresPerHour` and
 `ToMilesPerHour` agree for the same input, independent of `Format`'s
-rounding; nine new `TrackProjectionTests` covering all four corners, the
-centre, and the false path in all four directions, since that class had
-nothing to build on; a point exactly on the fence boundary plus a direct
-call to `GeofenceMonitor.Contains` (existing tests only ever went through
-`IsOutside`); and `FromTicks`'s upper-bound guard, the two exact boundary
-tick values that must *not* clamp, and what `Duration` does when only one
-endpoint is corrupt. `PlacesTheStartLine` stays skipped - fixing its stale
-pixels is a different, narrower change than "add the missing coverage," and
-mixing the two would have made this change harder to review for what it
-actually is. All five classes were already correct; this issue changed no
-production code, only tests (`dotnet test` on the rebuilt suite: 145 passed,
-0 failed, the one pre-existing skip).
+rounding, asserted both as exact expected values and as the literal
+relationship `mph == kmh * 0.621371`; new `TrackProjectionTests` covering
+all four corners, the centre, and the false path in all four directions,
+since that class had nothing to build on; a point exactly on the fence
+boundary plus a direct call to `GeofenceMonitor.Contains` (existing tests
+only ever went through `IsOutside`); and `FromTicks`'s upper-bound guard,
+the two exact boundary tick values that must *not* clamp, and what
+`Duration` does when only one endpoint is corrupt. `PlacesTheStartLine`
+stays skipped - fixing its stale pixels is a different, narrower change
+than "add the missing coverage," and mixing the two would have made this
+change harder to review for what it actually is.
+
+Codex's review on the PR caught a real gap in the new corners/centre cases:
+every one of them used equal lat/lon spans and a square canvas, so a
+regression that swapped `_width`/`_height`, or swapped the latitude and
+longitude spans, would still have passed all of them.
+`ProjectsAnInteriorPointCorrectlyWithNonSquareBoundsAndARectangularCanvas`
+closes that - unequal spans and a rectangular canvas give x and y different
+scale factors, so a swap changes the projected point. All five classes were
+already correct; this issue changed no production code, only tests
+(`dotnet test` on the rebuilt suite: 146 passed, 0 failed, the one
+pre-existing skip).
 
 ---
 

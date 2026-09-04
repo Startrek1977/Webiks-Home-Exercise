@@ -62,6 +62,7 @@ namespace RoverRally.Tests
 
             Assert.AreEqual(18.0, kmh, 0.0000005);
             Assert.AreEqual(11.184678, mph, 0.0000005);
+            Assert.AreEqual(kmh * 0.621371, mph, 0.0000005);
         }
     }
 }
