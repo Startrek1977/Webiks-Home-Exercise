@@ -1221,7 +1221,7 @@ and surfaced it as an `NU1903` audit warning - correctly, since swapping a
 dependency was never in scope for a format conversion or a TFM retarget. It's
 still the right call to defer, and still real risk sitting in the tree. With
 more time this is its own issue: work out whether `System.Text.Json` covers
-`Data/rovers.json`'s shape without a behavior change, or whether Newtonsoft
+`Data/rovers.json`'s shape without a behaviour change, or whether Newtonsoft
 stays and only the version moves.
 
 **Structured logging (#22).** Every fix in this exercise has leaned on the
