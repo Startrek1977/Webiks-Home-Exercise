@@ -87,14 +87,25 @@ namespace RoverRally.Core.Configuration
 
         /// <summary>
         /// One-time sweep for <c>Profile_*</c> keys left behind by the old
-        /// per-process-randomized-hash derivation: every launch used to mint
-        /// a new one that was never read again. Safe to run unconditionally
+        /// per-process-randomized-hash derivation. Safe to run unconditionally
         /// because <c>HKCU</c> is already scoped to the current Windows user,
         /// so within this hive every <c>Profile_*</c> sibling other than
-        /// <see cref="ProfileKey"/> is guaranteed to be that kind of orphan,
-        /// not another operator's live data - the OS guarantees this station
-        /// only ever sees one Windows account's registry keys here.
+        /// <see cref="ProfileKey"/> belongs to this same operator, not another
+        /// one - the OS guarantees this station only ever sees one Windows
+        /// account's registry keys here.
         /// </summary>
+        /// <remarks>
+        /// A sibling isn't necessarily worthless garbage: a station upgrading
+        /// straight from the old net48 build carries a <c>Profile_&lt;hash&gt;</c>
+        /// key whose hash was stable there and whose values are the operator's
+        /// real, live preferences - only per-process randomization on .NET
+        /// Core/.NET 8 made the *later* siblings write-once orphans. Each
+        /// sibling's values are migrated into the current key - without
+        /// overwriting anything already there - before it is deleted, so
+        /// neither case loses data: a genuine legacy profile survives the
+        /// upgrade, and an orphan with nothing salvageable is deleted exactly
+        /// as before.
+        /// </remarks>
         public static void CleanUpAbandonedProfileKeys()
         {
             try
@@ -111,6 +122,7 @@ namespace RoverRally.Core.Configuration
 
                         if (isAbandonedProfile)
                         {
+                            MigrateProfileValues(stationKey, subKeyName, currentProfileKey);
                             stationKey.DeleteSubKeyTree(subKeyName, throwOnMissingSubKey: false);
                         }
                     }
@@ -119,6 +131,42 @@ namespace RoverRally.Core.Configuration
             catch (Exception ex)
             {
                 Log.Warn("Could not clean up abandoned operator profile keys: " + ex.Message);
+            }
+        }
+
+        private static readonly string[] ProfileValueNames = { "SpeedUnit", "LastSelectedRoverId" };
+
+        /// <summary>
+        /// Copies any of <see cref="ProfileValueNames"/> present under
+        /// <paramref name="fromSubKeyName"/> into <paramref name="toSubKeyName"/>,
+        /// skipping any name the destination already has - the destination is
+        /// only ever created if there is actually something to carry over.
+        /// </summary>
+        private static void MigrateProfileValues(RegistryKey stationKey, string fromSubKeyName, string toSubKeyName)
+        {
+            using (RegistryKey fromKey = stationKey.OpenSubKey(fromSubKeyName))
+            {
+                if (fromKey == null) return;
+
+                RegistryKey toKey = null;
+                try
+                {
+                    foreach (string valueName in ProfileValueNames)
+                    {
+                        object value = fromKey.GetValue(valueName);
+                        if (value == null) continue;
+
+                        toKey = toKey ?? stationKey.CreateSubKey(toSubKeyName);
+                        if (toKey != null && toKey.GetValue(valueName) == null)
+                        {
+                            toKey.SetValue(valueName, value);
+                        }
+                    }
+                }
+                finally
+                {
+                    if (toKey != null) toKey.Dispose();
+                }
             }
         }
 

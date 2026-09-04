@@ -843,11 +843,28 @@ This landed on net48 and needed no retargeting, which is why it went first.
    short-lived processes: the second read back exactly what the first wrote,
    which is precisely what the old `GetHashCode()` derivation could never
    guarantee. `MainWindow` now also runs a one-time `CleanUpAbandonedProfileKeys()`
-   sweep at startup that deletes any sibling `Profile_*` key that isn't the
+   sweep at startup that removes any sibling `Profile_*` key that isn't the
    current one; I seeded three fake leftover keys - one was a genuine
    `Profile_4C859CCA` this station had already abandoned on this machine before
    the fix - and watched the sweep remove all three while leaving the live key
    and its values untouched.
+
+   A Codex review on the pull request caught a real data-loss case my first cut
+   of the sweep missed: a station upgrading straight from the old net48 build
+   still has a `Profile_<hash>` key whose hash *was* stable there, holding the
+   operator's real, live preferences - not every sibling is randomized-hash
+   garbage, only the ones minted during the window between #15's retarget and
+   this fix. My original sweep deleted every non-current sibling outright, so
+   that one genuine legacy profile would have been destroyed, unread, on the
+   very first launch after upgrading. `CleanUpAbandonedProfileKeys` now copies
+   any `SpeedUnit`/`LastSelectedRoverId` a sibling holds into the current key
+   first - without overwriting a value already there - and only then deletes
+   it. I re-verified against the real registry: seeded a legacy-shaped key with
+   real values, ran the sweep, and confirmed both values landed under the new
+   key and read back correctly through `StationSettings`; then seeded an empty
+   orphan and one with a conflicting `SpeedUnit`, ran it again, and confirmed
+   the empty one is simply removed while the conflicting value does not clobber
+   what the (by-then-current) key already holds.
 
    Worth calling out, per the issue's own "also worth considering": `HKCU` is
    already scoped to one Windows user, so the per-operator subkey only actually
