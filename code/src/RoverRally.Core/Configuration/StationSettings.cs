@@ -1,6 +1,7 @@
 using System;
 using System.Configuration;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using RoverRally.Core.Logging;
 using RoverRally.Core.Units;
@@ -44,11 +45,81 @@ namespace RoverRally.Core.Configuration
 
         /// <summary>
         /// Each operator gets their own slot under the station key so that two
-        /// shifts sharing a PC do not overwrite each other's preferences.
+        /// shifts sharing a PC do not overwrite each other's preferences - as
+        /// long as each shift actually logs into its own Windows account.
+        /// <c>HKCU</c> is already scoped to one Windows user, so this split
+        /// only separates operators who share a PC but not a login; it does
+        /// nothing for operators who share both, since they'd compute the
+        /// same <see cref="Environment.UserName"/> and land in the same slot.
         /// </summary>
+        /// <remarks>
+        /// Previously <c>"Profile_" + Environment.UserName.GetHashCode().ToString("X8")</c>.
+        /// <see cref="string.GetHashCode()"/> is randomized per process on
+        /// .NET Core and later (it was stable on .NET Framework), so that
+        /// derivation produced a different key on every launch once this
+        /// station moved off net48 - preferences appeared to reset every time,
+        /// and the abandoned keys never got cleaned up. Deriving from the
+        /// sanitized username itself instead of any hash is deterministic
+        /// across launches by construction, and keeps the key human-readable
+        /// in the registry.
+        /// </remarks>
         private static string ProfileKey
         {
-            get { return "Profile_" + Environment.UserName.GetHashCode().ToString("X8"); }
+            get { return "Profile_" + BuildProfileKeyName(Environment.UserName); }
+        }
+
+        private static readonly Regex UnsafeProfileKeyCharacters = new Regex(@"[^A-Za-z0-9._-]", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Turns a Windows username into a stable, registry-legal subkey
+        /// fragment: any character outside <c>[A-Za-z0-9._-]</c> - including
+        /// the backslash that would otherwise be read as a path separator -
+        /// is replaced with <c>_</c>, one for one, so a non-empty username
+        /// always sanitizes to a non-empty result. A <c>null</c>/empty
+        /// username falls back to a fixed placeholder instead, since an empty
+        /// subkey name passed to <see cref="RegistryKey.CreateSubKey(string)"/>
+        /// would target the parent key itself instead of a real child key.
+        /// </summary>
+        public static string BuildProfileKeyName(string userName)
+        {
+            return string.IsNullOrEmpty(userName) ? "unknown" : UnsafeProfileKeyCharacters.Replace(userName, "_");
+        }
+
+        /// <summary>
+        /// One-time sweep for <c>Profile_*</c> keys left behind by the old
+        /// per-process-randomized-hash derivation: every launch used to mint
+        /// a new one that was never read again. Safe to run unconditionally
+        /// because <c>HKCU</c> is already scoped to the current Windows user,
+        /// so within this hive every <c>Profile_*</c> sibling other than
+        /// <see cref="ProfileKey"/> is guaranteed to be that kind of orphan,
+        /// not another operator's live data - the OS guarantees this station
+        /// only ever sees one Windows account's registry keys here.
+        /// </summary>
+        public static void CleanUpAbandonedProfileKeys()
+        {
+            try
+            {
+                string currentProfileKey = ProfileKey;
+                using (RegistryKey stationKey = Registry.CurrentUser.OpenSubKey(RegistryPath, writable: true))
+                {
+                    if (stationKey == null) return;
+
+                    foreach (string subKeyName in stationKey.GetSubKeyNames())
+                    {
+                        bool isAbandonedProfile = subKeyName.StartsWith("Profile_", StringComparison.Ordinal)
+                            && !string.Equals(subKeyName, currentProfileKey, StringComparison.Ordinal);
+
+                        if (isAbandonedProfile)
+                        {
+                            stationKey.DeleteSubKeyTree(subKeyName, throwOnMissingSubKey: false);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Could not clean up abandoned operator profile keys: " + ex.Message);
+            }
         }
 
         public static SpeedUnit PreferredSpeedUnit

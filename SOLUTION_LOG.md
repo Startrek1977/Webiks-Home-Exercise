@@ -819,6 +819,47 @@ This landed on net48 and needed no retargeting, which is why it went first.
    the geofence check: a no-fix frame draws nothing, exactly as it judges
    nothing.
 
+6. **The per-operator registry key broke across restarts once the station moved
+   to .NET 8 (#17).** The issue named the exact line: `StationSettings.ProfileKey`
+   built the registry subkey from `Environment.UserName.GetHashCode()`. That hash
+   is stable within a process on .NET Framework but randomized per process on
+   .NET Core and later - a deliberate hash-flooding mitigation, not a runtime bug.
+   Once #15 retargeted every project to net8.0-windows, every launch computed a
+   different `Profile_XXXXXXXX` key, so `PreferredSpeedUnit` and
+   `LastSelectedRoverId` were written somewhere new each time and never read back
+   - preferences looked like they silently reset on every start, and the
+   abandoned keys piled up under `HKCU\Software\RoverLink\Station` forever.
+
+   Fixed by deriving the key from the sanitized username itself instead of any
+   hash - `StationSettings.BuildProfileKeyName` replaces anything outside
+   `[A-Za-z0-9._-]` with `_` and falls back to a fixed placeholder for a null or
+   empty username - which is deterministic by construction and, unlike the old
+   hash, human-readable in the registry. `StationSettingsTests` pins down
+   determinism, that two different usernames still land in different slots, and
+   that unsafe characters get replaced rather than crashing or degenerating to an
+   empty key. I confirmed the regression itself was fixed the way the codec bugs
+   were - against the real thing, not just a unit test - by loading the built
+   `RoverRally.Core.dll` and driving `StationSettings` from two separate,
+   short-lived processes: the second read back exactly what the first wrote,
+   which is precisely what the old `GetHashCode()` derivation could never
+   guarantee. `MainWindow` now also runs a one-time `CleanUpAbandonedProfileKeys()`
+   sweep at startup that deletes any sibling `Profile_*` key that isn't the
+   current one; I seeded three fake leftover keys - one was a genuine
+   `Profile_4C859CCA` this station had already abandoned on this machine before
+   the fix - and watched the sweep remove all three while leaving the live key
+   and its values untouched.
+
+   Worth calling out, per the issue's own "also worth considering": `HKCU` is
+   already scoped to one Windows user, so the per-operator subkey only actually
+   separates two shifts sharing a PC if each shift logs into its own Windows
+   account. If a station instead shares one Windows login across shifts - which
+   the original comment's "shifts sharing a PC" wording doesn't rule out - every
+   operator computes the same `Environment.UserName` and lands in the same slot
+   regardless of this fix; the split was never doing anything for that setup, on
+   either .NET Framework or .NET 8. I kept the split - removing it was out of
+   scope for this issue and the acceptance criteria assume it stays - but it's a
+   decision worth the owner making deliberately rather than by default.
+
 ---
 
 ## What You Removed
