@@ -56,9 +56,9 @@ work not yet started.*
 
 | Project | What you changed |
 |---|---|
-| `RoverRally.Core` | Converted to SDK-style (`Microsoft.NET.Sdk`), still net48/x86 (#12). `packages.config` → `PackageReference` for Newtonsoft.Json 6.0.8; dropped the explicit `System`/`System.Core` references, which the SDK supplies implicitly for net48 — everything else (`System.Configuration`, `System.Runtime.Remoting`, `System.Xml`, `System.Xml.Linq`) stayed explicit, since only those two are implicit outside `netcoreapp`/`net5+` — `System.Runtime.Remoting` was later dropped outright by #8, once `StationMonitorService`, its only caller, was deleted; set `GenerateAssemblyInfo=false` rather than delete `AssemblyInfo.cs`, which still carries the real title/company/version metadata. No `Compile` items needed listing — the implicit glob reproduces the existing 24 files exactly. |
-| `RoverRally.App` | Same treatment, still net48/x86 (#13). `UseWPF=true` replaced the four explicit `PresentationCore`/`PresentationFramework`/`WindowsBase`/`System.Xaml` references and took over globbing the XAML — `App.xaml` as `ApplicationDefinition`, the rest as `Page` — so the old `ApplicationDefinition`/`Page`/`Compile` item list came out entirely rather than being converted line by line. Kept `AssemblyName=RoverRally.Station` explicit, since SDK-style otherwise derives it from the project file name (`RoverRally.App`) and every doc in the repo names the exe by the old name. `Data\rovers.json` and `Data\session-cache.bin` moved from `<None Include>` to `<None Update>`, since the SDK's own default glob already picks up any non-code file as `None` — `Include`-ing them again is a duplicate-item error. |
-| `RoverRally.Tests` | Converted to SDK-style (`Microsoft.NET.Sdk`), still net48/x86 (#14) - the third and last project in the solution to move off the old format. `packages.config` → `PackageReference`, upgrading `MSTest.TestFramework`/`MSTest.TestAdapter` from 2.2.10 to 4.4.0 and adding `Microsoft.NET.Test.Sdk` 18.9.0, which `dotnet test` needs and `packages.config` restore never provided - this is also why `dotnet test` could not run the suite at all before this issue, not just why it needed extra flags. Dropped the explicit `<Compile Include>` list (the implicit glob reproduces the existing ten files exactly) and the `ProjectTypeGuids` test-project marker; kept `Properties/AssemblyInfo.cs` with `GenerateAssemblyInfo=false` rather than delete it, matching Core and App instead of the issue's literal wording. |
+| `RoverRally.Core` | Converted to SDK-style (`Microsoft.NET.Sdk`), still net48/x86 (#12). `packages.config` → `PackageReference` for Newtonsoft.Json 6.0.8; dropped the explicit `System`/`System.Core` references, which the SDK supplies implicitly for net48 — everything else (`System.Configuration`, `System.Runtime.Remoting`, `System.Xml`, `System.Xml.Linq`) stayed explicit, since only those two are implicit outside `netcoreapp`/`net5+` — `System.Runtime.Remoting` was later dropped outright by #8, once `StationMonitorService`, its only caller, was deleted; set `GenerateAssemblyInfo=false` rather than delete `AssemblyInfo.cs`, which still carries the real title/company/version metadata. No `Compile` items needed listing — the implicit glob reproduces the existing 24 files exactly. Retargeted to `net8.0-windows` in #15: `System.Xml`/`System.Xml.Linq` references dropped outright (implicit under net8), `System.Configuration` became a `System.Configuration.ConfigurationManager` 8.0.1 `PackageReference`, and it finally picked up the explicit `OutputPath` App and Tests already had. |
+| `RoverRally.App` | Same treatment, still net48/x86 (#13). `UseWPF=true` replaced the four explicit `PresentationCore`/`PresentationFramework`/`WindowsBase`/`System.Xaml` references and took over globbing the XAML — `App.xaml` as `ApplicationDefinition`, the rest as `Page` — so the old `ApplicationDefinition`/`Page`/`Compile` item list came out entirely rather than being converted line by line. Kept `AssemblyName=RoverRally.Station` explicit, since SDK-style otherwise derives it from the project file name (`RoverRally.App`) and every doc in the repo names the exe by the old name. `Data\rovers.json` and `Data\session-cache.bin` moved from `<None Include>` to `<None Update>`, since the SDK's own default glob already picks up any non-code file as `None` — `Include`-ing them again is a duplicate-item error. Retargeted to `net8.0-windows` in #15: `System.Configuration` reference became the same `ConfigurationManager` package as Core, and the dead `App.config` `<startup>` block naming `.NETFramework,Version=v4.8` came out. |
+| `RoverRally.Tests` | Converted to SDK-style (`Microsoft.NET.Sdk`), still net48/x86 (#14) - the third and last project in the solution to move off the old format. `packages.config` → `PackageReference`, upgrading `MSTest.TestFramework`/`MSTest.TestAdapter` from 2.2.10 to 4.4.0 and adding `Microsoft.NET.Test.Sdk` 18.9.0, which `dotnet test` needs and `packages.config` restore never provided - this is also why `dotnet test` could not run the suite at all before this issue, not just why it needed extra flags. Dropped the explicit `<Compile Include>` list (the implicit glob reproduces the existing ten files exactly) and the `ProjectTypeGuids` test-project marker; kept `Properties/AssemblyInfo.cs` with `GenerateAssemblyInfo=false` rather than delete it, matching Core and App instead of the issue's literal wording. Retargeted to `net8.0-windows` in #15 - no package or reference changes needed here, MSTest 4.4.0/Test.Sdk 18.9.0 already ran on net8. |
 
 Splitting the format conversion out from the retarget (#12 before #15) paid for
 itself immediately: restoring via `PackageReference` for the first time pulled
@@ -141,6 +141,113 @@ the conditions on `$(Configuration)` alone. Verified both entry points now
 evaluate identically for Debug and Release. I should have copied that pattern
 onto Tests the first time, since I had already written up why App needed it a
 few paragraphs above.
+
+### Retargeting to .NET 8 (#15)
+
+*What did the retarget itself surface, once every upstream blocker (#6-#14)
+was already gone?*
+
+**What I found.** With the vendor DLL, `BinaryFormatter`, `AppDomain`, and
+`System.Runtime.Remoting` already gone, and all three projects already
+SDK-style, `net48` → `net8.0-windows` compiled clean on the first try for
+every source file - the codebase really was as clean going in as the earlier
+issues' spikes said it would be. Two real carry-overs still needed handling,
+neither a source change: `ConfigurationManager.AppSettings` (`StationSettings.cs`
+in Core; `App.xaml.cs` and `MainWindow.xaml.cs` in App) isn't part of the net8
+base class library, so both projects needed a `System.Configuration.ConfigurationManager`
+package reference where they'd previously had a bare `<Reference
+Include="System.Configuration">`; and the same bare-reference pattern for
+`System.Xml`/`System.Xml.Linq` in Core doesn't resolve at all under SDK-style
+net8 (no GAC, no by-name assembly resolution) - both came out, since those
+namespaces are implicit under net8 anyway. `Microsoft.Win32.Registry`, also
+used in `StationSettings.cs`, needed nothing: Windows-only reference
+assemblies like it ship as part of the `net8.0-windows` target by default (the
+SDK actually normalized the TFM to `net8.0-windows7.0` once I set it, picking
+a default Windows API contract version I never specified).
+
+What actually surfaced only once the build ran: 6 new `CA1416` platform-
+compatibility warnings on `StationSettings.cs`'s Registry calls in Core. The
+SDK normally emits `[assembly: SupportedOSPlatform("windows")]` for you on a
+`-windows` TFM, but all three projects set `GenerateAssemblyInfo=false` back
+in #12/#13/#14 to keep their real, hand-authored `AssemblyInfo.cs` - and that
+flag turns off every attribute the SDK would otherwise generate, not just the
+title/version ones I meant to keep. Adding the attribute by hand to Core's
+`AssemblyInfo.cs` cleared those 6, but the next rebuild came back with 747 new
+`CA1416` warnings in `RoverRally.Tests` and a smaller batch in `RoverRally.App`
+- marking Core's own assembly Windows-only makes every public member of it
+read as Windows-only too, so any *consumer* assembly not itself marked
+Windows-only lights up on every call into `DriveController`, `SessionCacheFile`,
+`FrameCodec`, anything. Same root cause, same fix, applied to App's and Tests'
+own `AssemblyInfo.cs` as well.
+
+**What I decided.** Add `[assembly: SupportedOSPlatform("windows")]` by hand
+to all three `AssemblyInfo.cs` files rather than suppress `CA1416` in the
+`.csproj`s. The warning is correct - this whole solution is Windows-only, that
+is the entire reason for the `-windows` suffix - the attribute was just never
+generated because `GenerateAssemblyInfo=false` silently took it with it.
+Suppressing the warning code would have hidden a real signal if a future
+change made one of these projects less platform-specific; declaring the
+platform explicitly says what's actually true instead. Left `LangVersion`
+unpinned in all three - it now floats to the SDK's default (C# 12) - since
+this issue is a mechanical retarget, not license to start writing newer
+syntax. Also cleaned up two things directly tied to the framework this issue
+retires, both agreed with the exercise owner before touching them: pinned an
+explicit `OutputPath` on `RoverRally.Core.csproj` (closing the `bin\x86\Debug\`
+vs `bin\Debug\` drift #13 had already found and fixed on App and Tests but
+left noted, not fixed, on Core), and removed `App.config`'s dead
+`<startup><supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.8" />
+</startup>` block, which named the exact framework version this issue
+retargets away from.
+
+The restore also surfaced an expected `NU1701` compatibility warning on
+`Newtonsoft.Json` 6.0.8 in all three projects - it has no netstandard/net5+
+asset, so NuGet falls back to its `.NETFramework` build via compatibility
+shims. That's the same CVE this repo already knows about and has already
+deferred to #18; I left it exactly as deferred rather than pulled forward,
+since upgrading it was never this issue's job and doing it here would have
+mixed an unrelated package bump into a TFM-only change.
+
+**How I verified it.** `msbuild -t:Rebuild -p:Configuration=Debug
+-p:Platform=x86` after deleting all three projects' `bin`/`obj` (stale
+outputs can mask reference changes, per the lesson already written down in
+this repo) - 0 errors, and after the `SupportedOSPlatform` fix, 0 `CA1416`
+warnings anywhere, just the 4 expected `NU1701` warnings on Newtonsoft.Json.
+`dotnet test` - 94 tests, 93 passed, 1 skipped
+(`TrackProjectionTests.PlacesTheStartLine`, the one pre-existing skip), 0
+failed; the total has grown since #9's 87 as later issues added coverage, but
+the skip and failure counts - what actually matters for "did this issue break
+anything" - are unchanged.
+
+Then the real station against the real simulator, same discipline as every
+previous migration issue: `RoverRally.Station.exe`, launched from a shell so
+its log was visible, against `dotnet run --project code/simulator/RoverRally.Simulator`.
+It logged `Loaded 5 rover(s) from the roster.`, then `Migrated 8 legacy
+session cache record(s)...` and `Loaded 8 run(s) from the session cache.` -
+the migration message reappears here because deleting `bin`/`obj` redeploys a
+fresh copy of the source-controlled, still-legacy `Data/session-cache.bin`
+fixture on every clean rebuild; #11's migrator only ever touches the
+build-output copy, never the checked-in one, so this is expected on a clean
+rebuild and not a regression - then `Telemetry listener started on UDP
+14550.`. Both processes ran for a full minute with the simulator streaming
+all 5 vehicles at 5 Hz the whole time and nothing but those five startup
+lines in the station's log - no decode failures, no exceptions, no crash.
+
+Copilot's review on the PR caught one thing I'd left alone on purpose and
+turned out to be wrong about: `RoverRally.Core.csproj` still conditioned its
+`DebugType`/`Optimize` `PropertyGroup`s on `'$(Configuration)|$(Platform)' ==
+'Debug|x86'`, the exact pattern #13 and #14 had already found and fixed on
+App and Tests - it stops matching whenever the project builds outside the
+`.sln` without also passing `-p:Platform=x86` by hand, since the SDK
+defaults `$(Platform)` to `AnyCPU` first. I'd treated it as out of scope for
+a TFM-only retarget; the review was right that it wasn't. I reproduced it
+with `-getProperty` rather than trusting the report: standalone, Core's
+`DebugType` evaluated to `portable`, not `full`, exactly as the finding
+said. Applied the same fix App and Tests already carry - drop `$(Platform)`
+from the conditions, key them on `$(Configuration)` alone - and reverified
+both entry points now agree (`DebugType=full`, `Optimize=false` for Debug,
+whether or not `$(Platform)` is set). Same review also caught a stale
+comment on the `NU1903` suppression still saying "this format conversion",
+left over from #12's wording, which I updated to name this issue instead.
 
 ### Moving to 64-bit
 
