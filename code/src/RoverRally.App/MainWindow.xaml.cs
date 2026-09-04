@@ -112,6 +112,7 @@ namespace RoverRally.App
 
             try
             {
+                SessionCacheMigrator.MigrateIfNeeded(path);
                 Fleet.SetHistory(SessionCacheFile.Read(path));
             }
             catch (Exception ex)
