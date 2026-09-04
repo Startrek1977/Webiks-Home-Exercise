@@ -20,6 +20,11 @@
 | Documentation | | | |
 | **Total** | | | |
 
+*I'm keeping the real start/end times for each phase separately as I go, rather
+than reconstructing them from commit timestamps after the fact - those would
+undercount review/verification time that doesn't show up as a commit. I'll
+fill this table in for real before the exercise is submitted.*
+
 ---
 
 ## Approach
@@ -1208,7 +1213,63 @@ rather than an error - which reads like a broken test project. It needs
 
 ## What I'd Do With More Time
 
+*What's genuinely still open, not what's already landed.*
 
+**Replace `Newtonsoft.Json` (#18).** The CVE has been deferred at every
+opportunity since #12 first converted `RoverRally.Core` to `PackageReference`
+and surfaced it as an `NU1903` audit warning - correctly, since swapping a
+dependency was never in scope for a format conversion or a TFM retarget. It's
+still the right call to defer, and still real risk sitting in the tree. With
+more time this is its own issue: work out whether `System.Text.Json` covers
+`Data/rovers.json`'s shape without a behaviour change, or whether Newtonsoft
+stays and only the version moves.
+
+**Structured logging (#22).** Every fix in this exercise has leaned on the
+existing `Log.Info`/`Log.Warn` calls to verify against the real station and
+simulator - which is how I caught, for instance, the session-cache migration
+message reappearing after a clean rebuild, and the freshness-gate race in
+#39/#40. That's ad hoc verification, not a logging design. #22 is where that
+becomes a real decision - levels, structure, where output goes - rather than
+just "whatever happened to already be there."
+
+**Broader test coverage (#23/#24/#25).** The suite today is deep exactly
+where I went looking for bugs - the codec, `DriveController`, `Rover`,
+`GeofenceMonitor` - and thinner everywhere I didn't have a specific defect to
+chase. `TrackView`, `StationSettings`, and the WPF code-behind layer in
+general have no coverage at all: `RoverRally.Tests` doesn't currently
+reference `RoverRally.App` - both projects target `net8.0-windows` since
+#15, so nothing stops adding that `ProjectReference`, it would just need real
+WPF test setup (an STA thread, a dispatcher) that nothing in this suite has
+needed so far. Worth a real pass rather than only adding tests as a side
+effect of fixing something else.
+
+**A real documentation audit (#26).** `README.md`, `docs/architecture.md`,
+and `docs/operations-guide.md` all still carry x86/net48 wording in spots
+I deliberately left alone issue by issue - #15's and #16's own commits both
+say so explicitly, pointing the remaining prose cleanup at #26. Each
+individual issue was right not to scope-creep into a full doc pass; the debt
+is real and belongs to its own issue rather than staying scattered as "not
+this issue's job" footnotes.
+
+**The registry profile key (worth its own issue - #17, unverified).** While
+working on the migration issues I noticed `StationSettings.ProfileKey` builds
+`HKCU\...\Profile_<hash>` from `Environment.UserName.GetHashCode()`. .NET's
+`string.GetHashCode()` is randomized per process by design (it's a documented
+DoS/hash-flooding mitigation, not a bug), which means that key likely
+computes differently on every launch - silently landing each session in a
+fresh, empty profile instead of the operator's saved one. I have *not*
+verified this against the real station, and I haven't written it up as a bug
+finding elsewhere in this document, because I haven't done the work #17
+actually requires: reproduce it, decide on a stable replacement (a fixed
+per-machine identifier, or hashing with a non-randomized algorithm), and test
+it. Flagging it here as the most concrete lead for whoever picks up #17 next.
+
+**The fleet-wide command question #35 left open.** #35 deliberately answered
+"one vehicle under command" rather than a transmit loop over the whole
+roster, and said so as the owner's explicit call, not a default. If a real
+site ever runs unattended vehicles that need their stop reasserted while off
+screen, that decision needs revisiting - it's a materially bigger claim about
+what this station does, not a follow-on bug fix.
 
 ---
 
