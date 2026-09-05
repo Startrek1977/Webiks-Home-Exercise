@@ -70,6 +70,12 @@
                             <TextBlock Style="{StaticResource StatValue}"
                                        Text="{Binding SelectedRover.TiltDegrees, StringFormat='{}{0:0.0} deg'}" />
 
+                            <TextBlock Text="LAP COUNT" Style="{StaticResource StatLabel}" />
+                            <TextBlock Style="{StaticResource StatValue}" Text="{Binding LapCount}" />
+
+                            <TextBlock Text="LAST LAP TIME" Style="{StaticResource StatLabel}" />
+                            <TextBlock Style="{StaticResource StatValue}" Text="{Binding LastLapDisplay}" />
+
                             <Separator Margin="0,14" Background="#FF3A414C" />
 
                             <TextBlock Text="THROTTLE" Style="{StaticResource StatLabel}" />

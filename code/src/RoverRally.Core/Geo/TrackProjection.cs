@@ -38,5 +38,20 @@ namespace RoverRally.Core.Geo
 
             return x >= 0 && x <= _width && y >= 0 && y <= _height;
         }
+
+        /// <summary>
+        /// The inverse of <see cref="TryProject"/>: turns a canvas pixel back
+        /// into the position that would project there. Callers only ever
+        /// unproject pixels they chose themselves (a fixed point drawn on the
+        /// canvas), so unlike <see cref="TryProject"/> there is no
+        /// out-of-range case to report.
+        /// </summary>
+        public TrackPoint Unproject(double x, double y)
+        {
+            double longitude = _west + x / _width * (_east - _west);
+            double latitude = _north - y / _height * (_north - _south);
+
+            return new TrackPoint(latitude, longitude);
+        }
     }
 }

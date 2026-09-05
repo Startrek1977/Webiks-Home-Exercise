@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 using RoverRally.App.ViewModels;
+using RoverRally.App.Views;
 using RoverRally.Core.Configuration;
 using RoverRally.Core.Control;
 using RoverRally.Core.Geo;
@@ -24,14 +25,15 @@ namespace RoverRally.App
         // Assigned by LoadTrack()/StartLink(), both called from
         // MainWindow_Loaded before any handler that reads them can run: the
         // telemetry listener thread that could reach ApplyFrame isn't started
-        // until the end of StartLink(), and _geofence is assigned by the
-        // earlier LoadTrack() call in that same method. null! documents that
-        // invariant instead of forcing a nullable check onto call sites that
-        // can never actually see null.
+        // until the end of StartLink(), and _geofence/_lapTimers are assigned
+        // by the earlier LoadTrack() call in that same method. null! documents
+        // that invariant instead of forcing a nullable check onto call sites
+        // that can never actually see null.
         private TelemetryClient _telemetry = null!;
         private CommandSender _commands = null!;
         private DispatcherTimer _driveTimer = null!;
         private GeofenceMonitor _geofence = null!;
+        private LapTimerRegistry _lapTimers = null!;
 
         private readonly DriveControllerRegistry _driveControllers = new DriveControllerRegistry();
 
@@ -84,6 +86,7 @@ namespace RoverRally.App
             Settings.Bind(_vm);
 
             UpdateDriveDisplay();
+            UpdateLapDisplay();
         }
 
         private void LoadRoster()
@@ -111,6 +114,18 @@ namespace RoverRally.App
 
             _geofence = new GeofenceMonitor(fence);
             Track.SetGeofence(fence);
+
+            // The start line's real-world position isn't configured anywhere -
+            // it is derived from the exact pixels of the "Start / finish"
+            // Rectangle drawn in TrackView.xaml, via the same projection the
+            // track itself uses. TrackView.StartLineTopY is the line's north
+            // end and StartLineBottomY its south end; that order is what
+            // makes a west-to-east crossing (the racing direction on the top
+            // straight, confirmed against the simulator) the "forward" one
+            // LapTimer counts.
+            TrackPoint lineNorth = Track.Unproject(TrackView.StartLineX, TrackView.StartLineTopY);
+            TrackPoint lineSouth = Track.Unproject(TrackView.StartLineX, TrackView.StartLineBottomY);
+            _lapTimers = new LapTimerRegistry(lineNorth, lineSouth);
         }
 
         private void LoadSessionHistory()
@@ -169,7 +184,11 @@ namespace RoverRally.App
         /// </summary>
         private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == "SelectedRover") UpdateDriveDisplay();
+            if (e.PropertyName == "SelectedRover")
+            {
+                UpdateDriveDisplay();
+                UpdateLapDisplay();
+            }
         }
 
         private void Telemetry_ConnectionStateChanged(object? sender, EventArgs e)
@@ -224,6 +243,13 @@ namespace RoverRally.App
                 {
                     _fencedAlerted.Remove(rover.Id);
                 }
+
+                LapTimer lap = _lapTimers.For(rover.Id);
+                if (lap.Update(rover.Position, receivedUtc))
+                {
+                    Log.Info(rover.Name + " completed lap " + lap.LapCount + " in " +
+                            lap.LastLapTime!.Value.TotalSeconds.ToString("0.0") + "s.");
+                }
             }
 
             _frameCount++;
@@ -233,6 +259,7 @@ namespace RoverRally.App
             {
                 _vm.RefreshSelectedReadouts();
                 UpdateDriveDisplay();
+                UpdateLapDisplay();
             }
         }
 
@@ -390,6 +417,24 @@ namespace RoverRally.App
             DriveStateText.Foreground = (drive != null && drive.IsEmergencyStopLatched) || (rover != null && rover.IsEmergencyStopped)
                 ? _latchedStateBrush
                 : QuietStateBrush;
+        }
+
+        /// <summary>
+        /// Shows the selected rover's own lap count and last lap time, read
+        /// from its own LapTimer - so, like the drive display, this follows
+        /// the selection rather than a particular vehicle's telemetry, and a
+        /// rover with no data yet reads as no laps rather than leaving the
+        /// previous rover's numbers on screen.
+        /// </summary>
+        private void UpdateLapDisplay()
+        {
+            Rover? rover = _vm.SelectedRover;
+            LapTimer? lap = rover == null ? null : _lapTimers.For(rover.Id);
+
+            _vm.LapCount = lap == null ? 0 : lap.LapCount;
+            _vm.LastLapDisplay = lap != null && lap.LastLapTime.HasValue
+                ? lap.LastLapTime.Value.TotalSeconds.ToString("0.0") + "s"
+                : "--";
         }
 
         private static Brush CreateQuietStateBrush()

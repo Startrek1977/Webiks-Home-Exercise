@@ -30,7 +30,13 @@ Each vehicle shows as a coloured dot with a short line pointing the way it is
 facing, and drags a breadcrumb trail behind it for the last few minutes.
 
 The panel on the right follows whichever vehicle is selected. Select a different
-one from the Fleet tab.
+one from the Fleet tab. It also shows **Lap Count** and **Last Lap Time**,
+counted from crossings of the start/finish line drawn on the track. A crossing
+only counts when the vehicle passes the line going the racing way — reversing
+back across it, or sitting parked on it, does not add a lap. The first crossing
+after the station starts watching a vehicle just starts its clock rather than
+completing a lap, since wherever it happened to be on the loop when telemetry
+began is not a real lap.
 
 ---
 

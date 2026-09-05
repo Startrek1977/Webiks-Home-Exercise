@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
@@ -13,6 +14,15 @@ namespace RoverRally.App.Views
         private const int TrailLength = 300;
         private const double CanvasWidth = 720;
         private const double CanvasHeight = 480;
+
+        // Must match the "Start / finish" Rectangle in TrackView.xaml
+        // (Canvas.Left="298" Canvas.Top="103" Width="4" Height="34") - these
+        // describe the same drawn line as a vertical segment through its
+        // centre, for code that needs the line's real-world position rather
+        // than just its pixels.
+        public const double StartLineX = 300;
+        public const double StartLineTopY = 103;
+        public const double StartLineBottomY = 137;
 
         private static readonly Color[] RoverColours =
         {
@@ -38,6 +48,20 @@ namespace RoverRally.App.Views
         public void Configure(double north, double south, double west, double east)
         {
             _projection = new TrackProjection(north, south, west, east, CanvasWidth, CanvasHeight);
+        }
+
+        /// <summary>
+        /// The real-world position that would project onto pixel (x, y) of
+        /// this view's canvas, using the bounds passed to <see cref="Configure"/>.
+        /// </summary>
+        public TrackPoint Unproject(double x, double y)
+        {
+            if (_projection == null)
+            {
+                throw new InvalidOperationException("TrackView.Configure must be called before Unproject.");
+            }
+
+            return _projection.Unproject(x, y);
         }
 
         public void SetGeofence(TrackPoint[] fence)
