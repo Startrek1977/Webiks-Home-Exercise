@@ -1377,6 +1377,48 @@ check every other test in the class already had but this one never did.
 `TrackProjectionTests` is 11 for 11 now, no skip, and there is nothing left
 ignored anywhere in the suite. No production code changed.
 
+**#25** asked for a suite covering `SessionCacheFile`/`SessionCacheMigrator`:
+round-trip, an architecture-independent fixed record size, legacy migration
+against the real 8-run shipped fixture, idempotency, corrupt/truncated input,
+and the `FromTicks` tick guard - and named itself blocked by #11. By the time
+I picked it up, #11 was already closed, and its own acceptance criteria
+("all 8 runs read back correctly", "idempotent or detects an already-converted
+file", "corrupt/truncated input fails safely", "confirm `FromTicks` still
+guards") were close enough to #25's that the same PR had already added both
+`SessionCacheFileTests` and `SessionCacheMigratorTests` to satisfy them. So,
+the same move as #21 and #23: I checked #25's own bullets against what that
+PR actually shipped rather than writing a parallel suite. Round-trip is
+`AppendThenReadRoundTripsEveryField`. The architecture-independence guard is
+`RecordSize`, a hand-picked `public const int` of 32 rather than anything
+`Marshal.SizeOf`-derived (the exact bug #10/#51 fixed), pinned directly by
+`AppendWritesThirtyTwoBytesPerRecordRegardlessOfArchitecture`. Legacy
+migration is `MigratesTheRealShippedBytesAndPreservesTheOriginalAsABackup`,
+against the real bytes of `RoverRally.App/Data/session-cache.bin`, not a
+hand-built approximation. Corrupt/truncated input is covered on both sides of
+the boundary the two classes actually draw: the migrator refuses outright
+(`ThrowsAndLeavesTheFileUntouchedWhenLengthIsNotAWholeNumberOfRecords`, an
+`IOException` with the file untouched), while the tolerant runtime reader
+warns and discards the trailing partial record instead of throwing
+(`ReadLogsAWarningForATruncatedFileViaTheInjectedLogger`) - both "fail safely
+rather than producing garbage", just safely in different ways for different
+callers. The tick guard has four boundary cases already in
+`SessionCacheFileTests`, added for #23 covering `FromTicks`'s lower bound and
+extended here in review to also pin the upper bound and the corrupt-`Duration`
+consequence. The one bullet not covered by an identical scenario is
+idempotency worded literally as "run the migration twice": the existing
+`ReturnsFalseAndWritesNothingWhenAlreadyMigrated` builds its already-migrated
+file via `Append` rather than by calling `MigrateIfNeeded` a second time on a
+freshly-migrated one. I checked whether that gap was real rather than just
+differently-phrased: `IsAlreadyMigrated` only ever inspects whether every
+record's reserved gap is already zero, with no memory of how the file arrived
+at that state, so a second `MigrateIfNeeded` call against a file this same
+migrator just converted takes the exact code path that test already exercises.
+I raised this distinction with the exercise owner directly rather than
+deciding it myself, and the owner's call was to close #25 on the existing
+coverage without adding a test that would exercise an already-covered branch.
+`dotnet test` on the unmodified suite: 147 passed, 0 failed, 0 skipped. No
+production or test code changed for this issue.
+
 ---
 
 ## Architecture Decisions
