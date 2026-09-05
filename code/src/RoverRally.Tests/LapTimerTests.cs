@@ -71,6 +71,56 @@ namespace RoverRally.Tests
             Assert.AreEqual(0, timer.LapCount);
         }
 
+        /// <summary>
+        /// A fix landing exactly on the line is not a fluke to guard against
+        /// "just in case" - the line is derived from the same linear
+        /// projection as the rover's own quantized lat/lon, so an exact
+        /// match is a real, reachable case, not a contrived one. A fix here
+        /// must not be lost: the crossing has to be picked up on the next
+        /// fix that clears to the far side, exactly as if the middle fix had
+        /// never been sampled.
+        /// </summary>
+        [TestMethod]
+        public void AFixExactlyOnTheLineDoesNotLoseTheCrossingOnceTheNextFixClearsIt()
+        {
+            LapTimer timer = new LapTimer(LineStart, LineEnd);
+            timer.Update(West, Start);
+            timer.Update(OnLine, Start.AddSeconds(1));
+
+            bool completedLap = timer.Update(East, Start.AddSeconds(2));
+
+            Assert.IsFalse(completedLap, "The first forward crossing only arms the timer.");
+            Assert.AreEqual(0, timer.LapCount);
+
+            // A second full pass - still stepping through the same on-line
+            // point in between - must complete a lap, proving the pending
+            // on-line fix isn't left permanently "used up" by the first pass.
+            timer.Update(West, Start.AddSeconds(3));
+            timer.Update(OnLine, Start.AddSeconds(4));
+            bool secondCompletedLap = timer.Update(East, Start.AddSeconds(5));
+
+            Assert.IsTrue(secondCompletedLap);
+            Assert.AreEqual(1, timer.LapCount);
+        }
+
+        /// <summary>
+        /// Sitting exactly on the line does not, by itself, register as
+        /// ever having "arrived" on either side - so drifting back the way
+        /// it came must not be counted as a crossing either.
+        /// </summary>
+        [TestMethod]
+        public void RetreatingFromTheLineBackToTheSameSideIsNotACrossing()
+        {
+            LapTimer timer = new LapTimer(LineStart, LineEnd);
+            timer.Update(West, Start);
+            timer.Update(OnLine, Start.AddSeconds(1));
+
+            bool completedLap = timer.Update(West, Start.AddSeconds(2));
+
+            Assert.IsFalse(completedLap);
+            Assert.AreEqual(0, timer.LapCount);
+        }
+
         [TestMethod]
         public void TheFirstForwardCrossingArmsTheTimerWithoutCompletingALap()
         {

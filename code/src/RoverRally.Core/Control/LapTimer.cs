@@ -20,13 +20,34 @@ namespace RoverRally.Core.Control
     /// completing a lap - a rover's position when the station starts
     /// listening is arbitrary, so there is no meaningful prior lap to report
     /// yet. Every forward crossing after that completes one.
+    ///
+    /// A fix that lands exactly on the line does not resolve to either side
+    /// by itself - see <see cref="_lastDefinitePosition"/> for why it is
+    /// held pending rather than treated as a non-crossing.
     /// </summary>
     public class LapTimer
     {
         private readonly TrackPoint _lineStart;
         private readonly TrackPoint _lineEnd;
 
-        private TrackPoint? _previousPosition;
+        /// <summary>
+        /// The most recent fix that fell unambiguously on one side of the
+        /// line or the other - never a fix that landed exactly on it. A fix
+        /// can land exactly on the line for real: it's derived from the same
+        /// linear projection as the rover's own quantized lat/lon (telemetry
+        /// rounds to 1e-7 degrees), so an exact match isn't the coincidence
+        /// it would be with unrelated, unquantized coordinates. Advancing
+        /// this field past such a fix would make the *next* fix's segment
+        /// start from an ambiguous point too, and a segment that starts on
+        /// the line can never satisfy a strict side check no matter which
+        /// side it ends on - silently losing a real crossing that happened
+        /// to sample exactly on the line. Instead, an on-line fix is treated
+        /// as pending: this field holds still, so the segment being tested
+        /// for a crossing implicitly spans across it to whichever side the
+        /// next unambiguous fix resolves to.
+        /// </summary>
+        private TrackPoint? _lastDefinitePosition;
+
         private bool _timerRunning;
         private DateTime _lapStartUtc;
 
@@ -49,8 +70,10 @@ namespace RoverRally.Core.Control
         public bool Update(TrackPoint position, DateTime timestampUtc)
         {
             bool completedLap = false;
+            double side = Cross(_lineStart, _lineEnd, position);
 
-            if (_previousPosition.HasValue && CrossesForward(_previousPosition.Value, position))
+            if (_lastDefinitePosition.HasValue && side != 0 &&
+                CrossesForward(_lastDefinitePosition.Value, position))
             {
                 if (_timerRunning)
                 {
@@ -63,7 +86,11 @@ namespace RoverRally.Core.Control
                 _lapStartUtc = timestampUtc;
             }
 
-            _previousPosition = position;
+            if (side != 0)
+            {
+                _lastDefinitePosition = position;
+            }
+
             return completedLap;
         }
 

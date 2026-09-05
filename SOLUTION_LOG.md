@@ -1855,6 +1855,31 @@ time actually update - is still owed as a manual pass before this is
 called fully done, the same way #16 didn't stop at "the exe builds as x64"
 and went on to drive the real UI against the real simulator.
 
+Copilot's review on the pull request caught a real gap in the crossing
+test: `CrossesForward`'s side checks are strict (`< 0`/`> 0`), so a fix
+landing exactly on the line - `Cross(...) == 0` - resolves to neither side,
+and the review pointed out this isn't the contrived edge case it might look
+like, since the line's own lat/lon is derived from the same linear
+projection as the rover's own telemetry, which is itself quantized to 1e-7
+degrees. A `West -> OnLine -> East` sequence would silently lose that
+crossing entirely under the old code, because the segment `OnLine -> East`
+starts from an already-ambiguous point and can never satisfy a strict side
+check regardless of where it ends. I reproduced it first - a test walking
+exactly that three-fix sequence went red, the crossing never registering -
+before changing anything. The fix follows the review's own suggested
+shape: `LapTimer` now tracks the last fix that fell unambiguously on one
+side, `_lastDefinitePosition`, rather than simply the last fix seen. A fix
+that lands exactly on the line doesn't advance it, so it's held pending -
+the segment being tested for a crossing implicitly spans across any number
+of on-line fixes to whichever side the next unambiguous one resolves to,
+rather than being evaluated fix-by-fix. `AFixExactlyOnTheLineDoesNotLoseTheCrossingOnceTheNextFixClearsIt`
+pins down the fixed scenario, including a second full pass through the same
+on-line point to confirm the pending state isn't left "used up" after the
+first crossing; `RetreatingFromTheLineBackToTheSameSideIsNotACrossing`
+confirms sitting on the line and then withdrawing to the side it came from
+still doesn't register. `dotnet test` - 164 of 164 passed, 0 skipped, up
+from 162 by the 2 new cases.
+
 ---
 
 ## Additional Notes
