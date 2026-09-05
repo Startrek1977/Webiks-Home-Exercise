@@ -32,6 +32,22 @@
     <Optimize>true</Optimize>
   </PropertyGroup>
 
+  <!--
+    Extra-credit single-file publish (#31): "dotnet publish ... -r win-x64"
+    so the station can be copied whole to a laptop with no .NET installed.
+    Only activates when a RuntimeIdentifier is supplied on the command line,
+    so plain dotnet build/dotnet test/msbuild RoverRally.sln are completely
+    unaffected and the documented build output path
+    (bin\Debug|Release\RoverRally.Station.exe) does not move.
+    PublishTrimmed is deliberately not set: WPF does not reliably support
+    trimming.
+  -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
   <ItemGroup>
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
