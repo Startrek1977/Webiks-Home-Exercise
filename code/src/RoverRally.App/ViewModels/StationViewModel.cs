@@ -16,6 +16,8 @@ namespace RoverRally.App.ViewModels
         private Rover? _selectedRover;
         private string _linkState = "Disconnected";
         private SpeedUnit _speedUnit = SpeedUnit.KilometresPerHour;
+        private int _lapCount;
+        private string _lastLapDisplay = "--";
 
         public StationViewModel()
         {
@@ -65,6 +67,27 @@ namespace RoverRally.App.ViewModels
         {
             get { return _linkState; }
             set { _linkState = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// Lap count and last lap time for the selected rover. Unlike
+        /// <see cref="SelectedSpeedDisplay"/> these are not derived from
+        /// <see cref="Rover"/> itself - the lap timer that tracks them lives
+        /// in MainWindow, alongside the drive controllers, so it can survive
+        /// a selection change the same way theirs do. MainWindow pushes the
+        /// current values in here, the same way it does for
+        /// <see cref="LinkState"/>.
+        /// </summary>
+        public int LapCount
+        {
+            get { return _lapCount; }
+            set { _lapCount = value; OnPropertyChanged(); }
+        }
+
+        public string LastLapDisplay
+        {
+            get { return _lastLapDisplay; }
+            set { _lastLapDisplay = value; OnPropertyChanged(); }
         }
 
         /// <summary>

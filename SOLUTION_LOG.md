@@ -1769,4 +1769,92 @@ green check the acceptance criteria asks for.
 
 ---
 
+### Lap timer on the Track tab (#30)
+
+*One lap per crossing of the start line.*
+
+**What I found.** None of the geometry already in the codebase actually
+encoded a start line, despite the name of one skipped-then-fixed test
+suggesting otherwise. `TrackProjectionTests.PlacesTheStartLine` (fixed in
+#24) turned out to just project the geometric centre of the track's
+bounding box - a sanity check on the projection math, not a line. The
+"START" marker drawn in `TrackView.xaml` is a hand-placed `Rectangle` at
+fixed canvas pixels (`Left=298, Top=103, Width=4, Height=34`), with no
+lat/lon of its own. And `GeofenceMonitor` is point-in-polygon containment,
+not segment-vs-segment intersection - its own doc comment explains it was
+deliberately made to hold zero per-rover state after #4, which is the
+opposite of what a lap counter needs.
+
+I read `RoverSim.cs` (never modified, only read) to ground the direction
+question rather than guess at it: the simulator drives every rover around
+the same 720x480 canvas path drawn in `TrackView.xaml`, converting canvas
+(x, y) to lat/lon with the exact inverse of `TrackProjection`'s own formula
+and the same `TrackNorth/South/West/East` constants as `appsettings.json`.
+On the top straight, where the drawn marker sits, a rover moves with
+increasing x - west to east, increasing longitude - at an effectively
+constant latitude. That's the racing direction through the line, and it
+confirmed the marker's drawn position is genuinely on the loop the
+simulator drives, not just decoration near it.
+
+**What I decided.** Rather than add a new configuration value for the
+line's real-world position, `TrackProjection` gained `Unproject`, the
+algebraic inverse of its existing `TryProject`, so `MainWindow.LoadTrack()`
+can turn the drawn marker's own pixel coordinates - exposed as named
+constants on `TrackView` - back into the lat/lon line those pixels
+represent. The line and the drawing stay in sync by construction instead of
+by two people remembering to update two places.
+
+New `Control/LapTimer` (one per rover, via a new `Control/LapTimerRegistry`
+copying `DriveControllerRegistry`'s get-or-create shape exactly) detects a
+crossing as a genuine segment-vs-segment intersection between two
+consecutive fixes and the start line - the standard four-orientation
+test - rather than proximity to the line or merely crossing the infinite
+line through it. I checked this distinction actually mattered rather than
+assuming it: a segment that crosses the start line's longitude at a
+latitude well outside the line's own span (cutting the corner off the
+track surface entirely) passes an infinite-line check but correctly fails
+the finite one, and I have a test pinning that down
+(`ACrossingOutsideTheLinesSpanIsNotCounted`). A crossing only counts when
+its direction matches the line's fixed orientation (west to east, verified
+against `RoverSim.cs` above), so a rover reversing through the line, or
+oscillating without net progress, cannot inflate the count - directly
+answering the issue's own warning about a rover parked on the line lapping
+forever. The very first forward crossing a `LapTimer` ever sees only arms
+its clock rather than completing a lap: a rover's position when the
+station starts listening is arbitrary, so treating that moment as a lap
+start is real, but treating it as a lap *finish* would report a bogus
+first time with no meaningful start.
+
+Lap count and last lap time reach the Track tab the same way `LinkState`
+already does: two new plain `StationViewModel` properties (`LapCount`,
+`LastLapDisplay`) that `MainWindow` computes and pushes in, rather than the
+view model owning or knowing about `LapTimerRegistry` itself. I considered
+imperative `TextBlock.Text` updates instead, matching how the drive-state
+readout works, but the lap readout sits with the other passive telemetry
+(Speed, Heading, Signal) in the panel, not with the drive controls, so
+binding it the way its neighbours are bound kept that section internally
+consistent.
+
+**How I verified it.** `LapTimerTests` (9 cases) and `LapTimerRegistryTests`
+(4 cases) cover the crossing/direction/arming logic and per-rover isolation
+independently of the UI, using simple round-number fixtures the same way
+`GeofenceMonitorTests` does, plus an interleaved-rovers test proving one
+rover's crossings never touch another's count. `TrackProjectionTests`
+gained 2 cases for `Unproject`, including a project-then-unproject
+round trip. `dotnet test` - 162 of 162 passed, 0 skipped, up from 147 by
+exactly the 15 new tests, nothing existing changed. `MSBuild.exe
+-t:Rebuild -p:Configuration=Debug -p:Platform=x64` came back clean, which
+matters here specifically because nullable reference types are
+warnings-as-errors solution-wide (#28) and this issue touches a
+struct-returning method (`Unproject`) and several nullable local variables.
+
+I was not able to drive the WPF station visually in this environment to
+eyeball the readout on screen against the running simulator, so that last,
+most literal check - watch a rover complete a lap and see the count and
+time actually update - is still owed as a manual pass before this is
+called fully done, the same way #16 didn't stop at "the exe builds as x64"
+and went on to drive the real UI against the real simulator.
+
+---
+
 ## Additional Notes

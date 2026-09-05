@@ -139,5 +139,30 @@ namespace RoverRally.Tests
             double x, y;
             Assert.IsFalse(projection.TryProject(new TrackPoint(5, 11), out x, out y));
         }
+
+        [TestMethod]
+        public void UnprojectsAKnownPixelToTheKnownPositionThatWouldProjectThere()
+        {
+            TrackProjection projection = new TrackProjection(10, 0, 0, 10, 100, 100);
+
+            TrackPoint point = projection.Unproject(25, 75);
+
+            Assert.AreEqual(2.5, point.Longitude, 0.0001);
+            Assert.AreEqual(2.5, point.Latitude, 0.0001);
+        }
+
+        [TestMethod]
+        public void UnprojectIsTheInverseOfTryProjectForAnInteriorPoint()
+        {
+            TrackProjection projection = new TrackProjection(32.2830, 32.2770, 34.9160, 34.9250, 720, 480);
+            TrackPoint original = new TrackPoint(32.2800, 34.9205);
+
+            double x, y;
+            projection.TryProject(original, out x, out y);
+            TrackPoint roundTripped = projection.Unproject(x, y);
+
+            Assert.AreEqual(original.Latitude, roundTripped.Latitude, 0.0000001);
+            Assert.AreEqual(original.Longitude, roundTripped.Longitude, 0.0000001);
+        }
     }
 }

@@ -3,7 +3,7 @@
 **Last substantially updated:** June 2020 (ports and framework notes touched up
 2022; telemetry codec, emergency stop latch, per-rover drive state, no-fix
 frame handling, the legacy session cache migration, the roster JSON library
-swap, and enabling nullable reference types 2026)
+swap, enabling nullable reference types, and the lap timer 2026)
 
 ---
 
@@ -109,6 +109,35 @@ in the Fleet tab could silently clear a stop, or hold one it never issued (#37).
 its own station-side latch: it persists in memory regardless of selection and
 reasserts itself the moment that vehicle is reselected, without the station
 needing to keep addressing vehicles it is not displaying.
+
+---
+
+## The lap timer
+
+Added in 2026 (#30). Neither `TrackProjection` nor `GeofenceMonitor` encoded a
+start line before this — the "start/finish" marker drawn on the Track tab was
+pixel art with no real-world position of its own, and `GeofenceMonitor` does
+point-in-polygon containment, not segment-vs-segment crossing.
+
+`TrackProjection` gained `Unproject`, the inverse of its existing lat/lon-to-
+canvas mapping, so `TrackView` can turn the drawn marker's own pixel
+coordinates back into the real-world line those pixels represent, rather than
+the line's position being configured separately from what is actually drawn.
+
+`Control/LapTimer` (one per rover, via `Control/LapTimerRegistry` — the same
+get-or-create-and-remember shape as `DriveControllerRegistry`) watches the
+segment between two consecutive fixes for a genuine crossing of that line,
+not proximity to it: telemetry arrives at about 5 Hz, so a vehicle can cover a
+real distance between fixes, and the crossing can fall anywhere along that
+gap. Only a crossing in the racing direction counts, so a rover reversing or
+oscillating across the line cannot inflate the count. The first such crossing
+only starts the clock rather than completing a lap — a rover's position when
+the station starts listening is arbitrary, so there is no genuine prior lap to
+report yet.
+
+`MainWindow` feeds it from the same per-frame, per-rover block that already
+runs the geofence check, and pushes the selected rover's count and last lap
+time into `StationViewModel` the same way it already does for `LinkState`.
 
 ---
 
