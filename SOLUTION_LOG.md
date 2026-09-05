@@ -1357,6 +1357,26 @@ already correct; this issue changed no production code, only tests
 (`dotnet test` on the rebuilt suite: 146 passed, 0 failed, the one
 pre-existing skip).
 
+**#24** asked me to finally resolve that one pre-existing skip -
+`TrackProjectionTests.PlacesTheStartLine`, the fourth test in a class the brief
+describes as having three, invisible in a normal run for long enough that even
+Dana miscounted. The `[Ignore]` comment said the expected pixels had gone stale
+when canvas sizing moved into the view layer, and that held up under checking:
+the test hardcoded a 640x400 canvas, but the only real caller,
+`TrackView.Configure`, has used 720x480 since that dimension became the view's to
+own. `TrackProjection.TryProject`'s arithmetic hasn't changed since the original
+baseline import, and un-ignoring an unmodified copy of the test in isolation
+passed outright, exact to the asserted 0.5 delta. So this was a stale fixture, not
+a wrong implementation and not dead functionality - there's no start-line or
+lap-timer feature anywhere in this codebase yet for #30 to build on; the name is
+just descriptive of an interior test point at realistic real-world-scale bounds
+(~700m across). I updated the canvas size to the real 720x480, recomputed the
+expected pixels from the same fractional position the original author chose -
+dead centre of the bounds, so x=360, y=240 - and added the `Assert.IsTrue(result)`
+check every other test in the class already had but this one never did.
+`TrackProjectionTests` is 11 for 11 now, no skip, and there is nothing left
+ignored anywhere in the suite. No production code changed.
+
 ---
 
 ## Architecture Decisions
@@ -1476,7 +1496,7 @@ rather than an error - which reads like a broken test project. It needs
 
 *What's genuinely still open, not what's already landed.*
 
-**Broader test coverage (#24/#25 still open; #23 landed - see the Tests
+**Broader test coverage (#25 still open; #23 and #24 landed - see the Tests
 section above).** The suite today is deep exactly where I went looking for
 bugs - the codec, `DriveController`, `Rover`, `GeofenceMonitor` - and
 thinner everywhere I didn't have a specific defect to chase. `TrackView` and
