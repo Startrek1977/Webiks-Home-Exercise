@@ -1028,7 +1028,7 @@ with no survey backing, no lat/lon anchoring through `TrackProjection`
 the rover markers - goes through `TryProject`), no config key, no test, and
 no mention in either doc. A repo-wide search turned up exactly one hit for
 "skid pad": the XAML comment itself. I raised #66 to make the removal a
-decision on record rather than a driveby edit, and decided to delete it
+decision on record rather than a drive-by edit, and decided to delete it
 outright rather than invent per-site configuration for a shape no site has
 ever actually measured - that would have been new speculative surface area,
 not a fix. `TrackView.xaml.cs` never referenced it, so the change is a
