@@ -17,7 +17,7 @@ namespace RoverRally.Core.Telemetry
         /// <paramref name="buffer"/> starting at <paramref name="offset"/>.
         /// An empty range checksums to zero.
         /// </summary>
-        public static byte Compute(byte[]? buffer, int offset, int count)
+        public static byte Compute(byte[] buffer, int offset, int count)
         {
             if (buffer == null) throw new ArgumentNullException(nameof(buffer));
             if (offset < 0) throw new ArgumentOutOfRangeException(nameof(offset), "The offset cannot be negative.");

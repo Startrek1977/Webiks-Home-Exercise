@@ -65,7 +65,7 @@ namespace RoverRally.Tests
         [TestMethod]
         public void RejectsANullBuffer()
         {
-            Assert.ThrowsExactly<ArgumentNullException>(() => Crc8.Compute(null, 0, 0));
+            Assert.ThrowsExactly<ArgumentNullException>(() => Crc8.Compute(null!, 0, 0));
         }
 
         [TestMethod]

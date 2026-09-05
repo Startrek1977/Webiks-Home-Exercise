@@ -239,7 +239,7 @@ namespace RoverRally.App
         private void DriveTimer_Tick(object? sender, EventArgs e)
         {
             Rover? rover = _vm.SelectedRover;
-            if (rover == null || _commands == null) return;
+            if (rover == null) return;
 
             DriveController drive = _driveControllers.For(rover.Id);
             bool wasLatched = drive.IsEmergencyStopLatched;

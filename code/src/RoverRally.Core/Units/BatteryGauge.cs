@@ -48,7 +48,7 @@ namespace RoverRally.Core.Units
         /// reading itself is implausible (a failed sensor, a miswired cell),
         /// not that the pack is simply flat or full.
         /// </summary>
-        public static int ToPercent(int milliVolts, ILogger? logger)
+        public static int ToPercent(int milliVolts, ILogger logger)
         {
             if (logger == null) throw new ArgumentNullException(nameof(logger));
 

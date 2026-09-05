@@ -102,7 +102,7 @@ namespace RoverRally.Tests
         [TestMethod]
         public void ToPercentWithLoggerThrowsForANullLogger()
         {
-            Assert.ThrowsExactly<ArgumentNullException>(() => BatteryGauge.ToPercent(11100, null));
+            Assert.ThrowsExactly<ArgumentNullException>(() => BatteryGauge.ToPercent(11100, null!));
         }
     }
 }
