@@ -12,8 +12,9 @@ library swap 2026)
 The station started in 2016 as a one-window utility for watching a single
 vehicle. The fleet grid arrived in 2017, the drive controls in 2018, the session
 cache in 2019, and the imperial readout in 2019 for the visiting customer
-trials. It has been on .NET Framework 4.8 and 32-bit since the 4.8 retarget in
-2019.
+trials. It was on .NET Framework 4.8 and 32-bit from the 4.8 retarget in 2019
+until the 2026 migration retargeted it to `net8.0-windows` (#15) and flipped
+the platform to x64 (#16).
 
 Nobody has owned it full time since 2021.
 
@@ -60,7 +61,7 @@ above is the one third-party runtime package still in the tree.
 |---|---|---|
 | Fleet roster | `Data\rovers.json` | JSON, edited by hand by the site lead |
 | Completed runs | `Data\session-cache.bin` | Fixed stride binary records |
-| Site configuration | `App.config` | appSettings |
+| Site configuration | `appsettings.json` | JSON, `"Station"` section |
 | Operator preferences | Registry, `HKCU\Software\RoverLink\Station` | One subkey per operator |
 
 The session cache is a flat binary file rather than a database because the

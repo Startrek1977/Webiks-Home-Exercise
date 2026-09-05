@@ -1505,6 +1505,38 @@ The compiler was also telling me, for what it is worth: CS0414,
 an error, sitting on the one safety control in the application, for long enough
 that it had become part of the scenery.
 
+**Issue #26 itself is a data point here.** It was written assuming
+`README.md`, `docs/architecture.md` and `docs/operations-guide.md` still
+described .NET Framework 4.8, x86, and a working vendor SDK - the state
+before #15/#16. By the time I actually opened these files for #26, most of
+that was already gone: #15, #16, #19, #20, #22, #35, #36 and #37 had each
+corrected the spots their own change touched, as this log's own "What I'd Do
+With More Time" section predicted back at #19. `docs/operations-guide.md`'s
+emergency-stop section in particular matched `DriveController.cs` and
+`MainWindow.xaml.cs` exactly, including the per-vehicle latch from #35 - it
+needed no changes at all. So the issue's own premise was itself out of date,
+which is the same lesson as the telemetry SDK above in miniature: an issue
+description is a document like any other, and it drifts the moment the code
+moves past it.
+
+What was actually left, once I checked rather than assumed, was narrower and
+sharper than "still describes 4.8/x86": three places where a *header or
+summary line* disagreed with the *body of the same document*.
+`docs/rover-link-protocol.md` opened with "SDK version in use: 1.4.2" while
+its own "Codec" section, a page down, correctly said the vendor DLL had
+already been replaced (#5). `docs/architecture.md`'s History section still
+stated the station "has been on .NET Framework 4.8 and 32-bit... since 2019"
+as a present-tense fact, contradicted by its own "Third-party code" section a
+few lines later, which already talks about net8.0. And `README.md`'s
+configuration table still pointed at `App.config`, which #19 deleted - the
+one genuinely dangerous item on this list, since it sends an operator to edit
+a file the station no longer reads, rather than just reading oddly. `CLAUDE.md`
+had the same disease: it still warned that `docs/operations-guide.md`
+describes remote monitoring as live, a line #8 had already made false. In
+every case the fix was small once found; finding them meant reading whole
+documents end to end rather than trusting a stale, bug-report-shaped list of
+what was supposedly still wrong.
+
 ---
 
 ## Challenges
