@@ -61,7 +61,7 @@ namespace RoverRally.Tests
         {
             DriveControllerRegistry registry = new DriveControllerRegistry();
 
-            StationCommand command;
+            StationCommand? command;
             Assert.IsTrue(registry.For(FalafelId).TryToggleArm(FalafelId, false, Now, Now, 0, out command));
 
             Assert.IsTrue(registry.For(FalafelId).IsArmed);

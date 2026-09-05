@@ -18,7 +18,7 @@ namespace RoverRally.Core.Configuration
     {
         private const string RegistryPath = @"Software\RoverLink\Station";
 
-        private static StationOptions _options;
+        private static StationOptions? _options;
 
         /// <summary>
         /// Supplies the bound site configuration. Must be called once, before
@@ -35,13 +35,8 @@ namespace RoverRally.Core.Configuration
         {
             get
             {
-                if (_options == null)
-                {
-                    throw new InvalidOperationException(
-                        "StationSettings.Configure must be called before reading station configuration.");
-                }
-
-                return _options;
+                return _options ?? throw new InvalidOperationException(
+                    "StationSettings.Configure must be called before reading station configuration.");
             }
         }
 
@@ -95,7 +90,7 @@ namespace RoverRally.Core.Configuration
         /// subkey name passed to <see cref="RegistryKey.CreateSubKey(string)"/>
         /// would target the parent key itself instead of a real child key.
         /// </summary>
-        public static string BuildProfileKeyName(string userName)
+        public static string BuildProfileKeyName(string? userName)
         {
             return string.IsNullOrEmpty(userName) ? "unknown" : UnsafeProfileKeyCharacters.Replace(userName, "_");
         }
@@ -126,7 +121,7 @@ namespace RoverRally.Core.Configuration
             try
             {
                 string currentProfileKey = ProfileKey;
-                using (RegistryKey stationKey = Registry.CurrentUser.OpenSubKey(RegistryPath, writable: true))
+                using (RegistryKey? stationKey = Registry.CurrentUser.OpenSubKey(RegistryPath, writable: true))
                 {
                     if (stationKey == null) return;
 
@@ -159,16 +154,16 @@ namespace RoverRally.Core.Configuration
         /// </summary>
         private static void MigrateProfileValues(RegistryKey stationKey, string fromSubKeyName, string toSubKeyName)
         {
-            using (RegistryKey fromKey = stationKey.OpenSubKey(fromSubKeyName))
+            using (RegistryKey? fromKey = stationKey.OpenSubKey(fromSubKeyName))
             {
                 if (fromKey == null) return;
 
-                RegistryKey toKey = null;
+                RegistryKey? toKey = null;
                 try
                 {
                     foreach (string valueName in ProfileValueNames)
                     {
-                        object value = fromKey.GetValue(valueName);
+                        object? value = fromKey.GetValue(valueName);
                         if (value == null) continue;
 
                         toKey = toKey ?? stationKey.CreateSubKey(toSubKeyName);
@@ -189,7 +184,7 @@ namespace RoverRally.Core.Configuration
         {
             get
             {
-                object stored = ReadProfileValue("SpeedUnit");
+                object? stored = ReadProfileValue("SpeedUnit");
                 if (stored == null) return SpeedUnit.KilometresPerHour;
                 return string.Equals(stored.ToString(), "mph", StringComparison.OrdinalIgnoreCase)
                     ? SpeedUnit.MilesPerHour
@@ -205,7 +200,7 @@ namespace RoverRally.Core.Configuration
         {
             get
             {
-                object stored = ReadProfileValue("LastSelectedRoverId");
+                object? stored = ReadProfileValue("LastSelectedRoverId");
                 if (stored == null) return 0;
                 int parsed;
                 return int.TryParse(stored.ToString(), out parsed) ? parsed : 0;
@@ -213,11 +208,11 @@ namespace RoverRally.Core.Configuration
             set { WriteProfileValue("LastSelectedRoverId", value.ToString(CultureInfo.InvariantCulture)); }
         }
 
-        private static object ReadProfileValue(string name)
+        private static object? ReadProfileValue(string name)
         {
             try
             {
-                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RegistryPath + "\\" + ProfileKey))
+                using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(RegistryPath + "\\" + ProfileKey))
                 {
                     return key == null ? null : key.GetValue(name);
                 }

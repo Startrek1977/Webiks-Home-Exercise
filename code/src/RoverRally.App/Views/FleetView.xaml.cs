@@ -12,7 +12,7 @@ namespace RoverRally.App.Views
 {
     public partial class FleetView : UserControl
     {
-        private StationViewModel _vm;
+        private StationViewModel? _vm;
 
         public FleetView()
         {
@@ -41,8 +41,8 @@ namespace RoverRally.App.Views
         {
             if (_vm == null) return "Rover " + roverId;
 
-            Rover match = _vm.Rovers.FirstOrDefault(r => r.Id == roverId);
-            return match == null ? "Rover " + roverId : match.Name;
+            Rover? match = _vm.Rovers.FirstOrDefault(r => r.Id == roverId);
+            return match == null ? "Rover " + roverId : match.Name ?? ("Rover " + roverId);
         }
 
         private void Filter_Changed(object sender, EventArgs e)
@@ -54,12 +54,12 @@ namespace RoverRally.App.Views
 
             string search = SearchBox.Text == null ? string.Empty : SearchBox.Text.Trim();
 
-            ComboBoxItem selected = StatusFilter.SelectedItem as ComboBoxItem;
-            string status = selected == null ? "All" : selected.Content.ToString();
+            ComboBoxItem? selected = StatusFilter.SelectedItem as ComboBoxItem;
+            string status = selected == null ? "All" : selected.Content.ToString() ?? "All";
 
             view.Filter = delegate(object item)
             {
-                Rover rover = item as Rover;
+                Rover? rover = item as Rover;
                 if (rover == null) return false;
 
                 if (status != "All" && rover.Status.ToString() != status) return false;
@@ -81,7 +81,7 @@ namespace RoverRally.App.Views
         {
             if (_vm == null) return;
 
-            Rover selected = FleetGrid.SelectedItem as Rover;
+            Rover? selected = FleetGrid.SelectedItem as Rover;
             if (selected != null) _vm.SelectedRover = selected;
         }
 

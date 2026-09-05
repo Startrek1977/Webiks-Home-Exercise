@@ -53,9 +53,9 @@ namespace RoverRally.Core.Logging
 
         public static LogLevel MinimumLevel = LogLevel.Info;
 
-        private static ILoggerFactory _loggerFactory;
-        private static ILogger _facadeLogger;
-        private static Serilog.Core.Logger _serilogLogger;
+        private static ILoggerFactory? _loggerFactory;
+        private static ILogger? _facadeLogger;
+        private static Serilog.Core.Logger? _serilogLogger;
 
         /// <summary>
         /// Wires the facade and every <see cref="ILogger"/> handed out by
@@ -126,7 +126,7 @@ namespace RoverRally.Core.Logging
         /// </summary>
         public static ILogger CreateLogger<T>()
         {
-            return CreateLogger(typeof(T).FullName);
+            return CreateLogger(typeof(T).FullName ?? typeof(T).Name);
         }
 
         public static ILogger CreateLogger(string categoryName)
@@ -239,7 +239,7 @@ namespace RoverRally.Core.Logging
         /// </summary>
         private sealed class FacadeLogger : ILogger
         {
-            public IDisposable BeginScope<TState>(TState state)
+            public IDisposable BeginScope<TState>(TState state) where TState : notnull
             {
                 return NullScope.Instance;
             }
@@ -249,7 +249,7 @@ namespace RoverRally.Core.Logging
                 return true;
             }
 
-            public void Log<TState>(MelLogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+            public void Log<TState>(MelLogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
             {
                 string message = formatter(state, exception);
                 Write(FromMicrosoftLevel(logLevel), exception == null ? message : message + " -- " + exception.Message);

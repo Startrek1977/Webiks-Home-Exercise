@@ -24,7 +24,7 @@ namespace RoverRally.Core.Roster
             try
             {
                 string json = File.ReadAllText(path);
-                List<Rover> rovers = JsonSerializer.Deserialize<List<Rover>>(json);
+                List<Rover>? rovers = JsonSerializer.Deserialize<List<Rover>>(json);
 
                 if (rovers == null) rovers = new List<Rover>();
 

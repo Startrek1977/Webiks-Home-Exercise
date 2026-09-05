@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace RoverRally.Core.Control
 {
@@ -212,7 +213,7 @@ namespace RoverRally.Core.Control
         /// being waved through silently.
         /// </summary>
         public bool TryToggleArm(byte roverId, bool isEmergencyStopped, DateTime lastFrameUtc, DateTime nowUtc,
-                                 short throttle, out StationCommand command)
+                                 short throttle, [NotNullWhen(true)] out StationCommand? command)
         {
             if (!_emergencyStopLatched && ShouldAdoptAVehicleReportedStop(roverId, isEmergencyStopped, lastFrameUtc, nowUtc))
             {

@@ -22,7 +22,7 @@ namespace RoverRally.Core.Control
         /// </summary>
         public DriveController For(byte roverId)
         {
-            DriveController controller;
+            DriveController? controller;
             if (!_controllers.TryGetValue(roverId, out controller))
             {
                 controller = new DriveController();

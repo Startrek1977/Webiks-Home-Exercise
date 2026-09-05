@@ -2,8 +2,8 @@
 
 **Last substantially updated:** June 2020 (ports and framework notes touched up
 2022; telemetry codec, emergency stop latch, per-rover drive state, no-fix
-frame handling, the legacy session cache migration, and the roster JSON
-library swap 2026)
+frame handling, the legacy session cache migration, the roster JSON library
+swap, and enabling nullable reference types 2026)
 
 ---
 

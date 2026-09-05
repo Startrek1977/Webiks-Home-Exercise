@@ -25,7 +25,7 @@ namespace RoverRally.Core.Units
         /// <see cref="ILogger"/> overload directly rather than going through
         /// this field.
         /// </summary>
-        private static ILogger _logger;
+        private static ILogger? _logger;
 
         /// <summary>
         /// A pack at or below <see cref="EmptyMilliVolts"/> - including a
