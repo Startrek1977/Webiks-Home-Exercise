@@ -1631,4 +1631,74 @@ what this station does, not a follow-on bug fix.
 
 ---
 
+## Extra Credit
+
+### Nullable reference types across the solution (#28)
+
+*Enable `<Nullable>enable</Nullable>` and get the solution clean under it.*
+
+**What I found.** Going file by file rather than trusting the three examples
+the issue names, the codebase turned out to be unusually disciplined about
+null already: almost every place a value can genuinely be absent -
+`_vm.SelectedRover` when nothing is selected, `StationSettings.ReadProfileValue`
+when a registry value is missing, the `out` parameters on `FrameCodec.TryDecode`
+and `DriveController.TryToggleArm` on their false path - was already checked
+before use at every call site I could find. That meant this issue was
+overwhelmingly an annotation exercise, not a bug hunt: flipping the switch on
+each project one at a time (Core, then App, then Tests) and working through
+whatever the compiler actually flagged surfaced 90-odd warnings across the
+solution, and all but a handful resolved by just writing down the nullability
+the surrounding code already assumed.
+
+The handful that weren't mechanical: `StationOptions`'s five string properties
+looked like a clean `required`-modifier case (populated only through one
+object-initializer in `Load()`) until I found a second, narrower construction
+site in `LogTests.cs` that only ever sets `LogLevel`/`LogDirectory` on purpose
+- `required` would have forced that test to fill in properties it has no
+reason to care about, so those five properties got `= string.Empty;` defaults
+instead, and the test stayed untouched. And two tests
+(`DriveControllerTests.DisarmsWithoutComplainingAboutTheThrottle`,
+`.ReArmClearsAnAdoptedLatchWhenThrottleIsCentred`) stored `TryToggleArm`'s
+`bool` return in a local before asserting on it, then dereferenced the `out`
+command afterward - the compiler can't correlate a stored `bool` back to the
+`out` parameter's `[NotNullWhen(true)]` state the way it can when the call is
+inlined directly as the assertion's own argument, so those two calls moved
+inline (same assertion, same message, no behavior change) rather than reaching
+for a null-forgiving `!`.
+
+**What I decided.** `Rover.Name`/`ChassisType`/`RadioSerial` became genuinely
+nullable (`string?`), matching what `JsonSerializer.Deserialize` can actually
+hand back from a rovers.json missing a field, propagated into
+`FleetView.NameFor`'s one read site with the same `"Rover " + roverId` fallback
+it already used for "no match at all." `MainWindow`'s four link/track fields
+(`_telemetry`, `_commands`, `_driveTimer`, `_geofence`) are the one place I used
+`null!` rather than a real annotation: all four are assigned by
+`LoadTrack()`/`StartLink()`, both called from `MainWindow_Loaded` before any
+handler that reads them can run, but not every read site defensively
+null-checks them (`_geofence`'s one use in `ApplyFrame` doesn't), so forcing
+`?` onto them would have meant inventing a null branch that can never actually
+execute. One grouped comment above the four fields records the invariant that
+makes `null!` safe there instead of scattering a justification per field.
+`StationSettings._options` and `Log`'s three pipeline fields needed no
+suppression at all - a nullable backing field plus the getter's existing
+`throw` (`_options ?? throw new InvalidOperationException(...)`) keeps the
+public `Options` property's return type honestly non-null. Nullable warnings
+are promoted to build errors (`<WarningsAsErrors>Nullable</WarningsAsErrors>`
+on all three solution `.csproj`s) so this clean state can't regress silently
+under a future change.
+
+**How I verified it.** `msbuild -t:Rebuild` on the full solution, both
+Debug|x64 and Release|x64 - 0 warnings, 0 errors, in both configurations, with
+`WarningsAsErrors` in place so a leftover nullable warning would have failed
+the build rather than merely printed. `dotnet test` - 147 of 147 passed,
+nothing skipped, nothing added or changed in what any test asserts. Then the
+real station against the real simulator: roster loaded (5 rovers), session
+cache read (8 runs, migration correctly refused since a `.legacy` backup
+already existed from an earlier run), telemetry listener started on UDP
+14550 and began decoding frames, battery warnings logged exactly where a 0 mV
+reading is expected to log one - the same behaviour as before this issue,
+just with the compiler now able to prove most of it.
+
+---
+
 ## Additional Notes

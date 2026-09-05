@@ -88,7 +88,7 @@ namespace RoverRally.Tests
             controller.EngageEmergencyStop();
             AssertInvariant(controller, "after the stop");
 
-            StationCommand refused;
+            StationCommand? refused;
             controller.TryToggleArm(FalafelId, false, Now, Now, FullThrottle, out refused);
             AssertInvariant(controller, "after a refused re-arm");
 
@@ -119,7 +119,7 @@ namespace RoverRally.Tests
                 Assert.IsTrue(controller.NextDriveCommand(FalafelId, false, Now, Now, 0, 0).EmergencyStop);
             }
 
-            StationCommand rearm;
+            StationCommand? rearm;
             Assert.IsTrue(controller.TryToggleArm(FalafelId, false, Now, Now, 0, out rearm));
 
             Assert.IsFalse(rearm.EmergencyStop);
@@ -140,7 +140,7 @@ namespace RoverRally.Tests
             DriveController controller = ArmedController();
             controller.EngageEmergencyStop();
 
-            StationCommand command;
+            StationCommand? command;
             bool rearmed = controller.TryToggleArm(FalafelId, false, Now, Now, FullThrottle, out command);
 
             Assert.IsFalse(rearmed);
@@ -155,10 +155,9 @@ namespace RoverRally.Tests
         {
             DriveController controller = ArmedController();
 
-            StationCommand command;
-            bool toggled = controller.TryToggleArm(FalafelId, false, Now, Now, FullThrottle, out command);
-
-            Assert.IsTrue(toggled, "Disarming is never the unsafe direction.");
+            StationCommand? command;
+            Assert.IsTrue(controller.TryToggleArm(FalafelId, false, Now, Now, FullThrottle, out command),
+                          "Disarming is never the unsafe direction.");
             Assert.IsFalse(controller.IsArmed);
             Assert.IsFalse(command.Armed);
         }
@@ -251,7 +250,7 @@ namespace RoverRally.Tests
         {
             DriveController controller = new DriveController();
 
-            StationCommand command;
+            StationCommand? command;
             bool rearmed = controller.TryToggleArm(FalafelId, true, Now, Now, FullThrottle, out command);
 
             Assert.IsFalse(rearmed, "An adopted stop was cleared without a centred throttle.");
@@ -265,10 +264,8 @@ namespace RoverRally.Tests
         {
             DriveController controller = new DriveController();
 
-            StationCommand command;
-            bool rearmed = controller.TryToggleArm(FalafelId, true, Now, Now, 0, out command);
-
-            Assert.IsTrue(rearmed);
+            StationCommand? command;
+            Assert.IsTrue(controller.TryToggleArm(FalafelId, true, Now, Now, 0, out command));
             Assert.IsFalse(command.EmergencyStop);
             Assert.IsTrue(command.Armed);
             Assert.IsFalse(controller.IsEmergencyStopLatched);
@@ -298,7 +295,7 @@ namespace RoverRally.Tests
             controller.NextDriveCommand(FalafelId, true, beforeRearm, beforeRearm, FullThrottle, FullThrottle);
             Assert.IsTrue(controller.IsEmergencyStopLatched, "Setup: the stop should have been adopted first.");
 
-            StationCommand rearm;
+            StationCommand? rearm;
             Assert.IsTrue(controller.TryToggleArm(FalafelId, true, beforeRearm, rearmMoment, 0, out rearm));
             Assert.IsFalse(controller.IsEmergencyStopLatched, "Setup: the re-arm should have cleared the latch.");
 
@@ -331,7 +328,7 @@ namespace RoverRally.Tests
             DriveController controller = new DriveController();
             controller.NextDriveCommand(FalafelId, true, beforeRearm, beforeRearm, FullThrottle, FullThrottle);
 
-            StationCommand rearm;
+            StationCommand? rearm;
             Assert.IsTrue(controller.TryToggleArm(FalafelId, true, beforeRearm, rearmMoment, 0, out rearm));
 
             StationCommand afterConfirmation =
@@ -398,7 +395,7 @@ namespace RoverRally.Tests
 
             DriveController controller = new DriveController();
 
-            StationCommand rearm;
+            StationCommand? rearm;
             Assert.IsTrue(controller.TryToggleArm(FalafelId, false, DateTime.MinValue, rearmMoment, 0, out rearm),
                           "Setup: arming a silent rover with a centred throttle should succeed.");
             Assert.IsTrue(rearm.Armed);
@@ -485,7 +482,7 @@ namespace RoverRally.Tests
         {
             DriveController falafel = ArmedController();
             DriveController sandstorm = new DriveController();
-            StationCommand rearm;
+            StationCommand? rearm;
             Assert.IsTrue(sandstorm.TryToggleArm(SandstormId, false, Now, Now, 0, out rearm));
 
             falafel.EngageEmergencyStop();
@@ -503,7 +500,7 @@ namespace RoverRally.Tests
             falafel.EngageEmergencyStop();
 
             DriveController sandstorm = new DriveController();
-            StationCommand rearm;
+            StationCommand? rearm;
             Assert.IsTrue(sandstorm.TryToggleArm(SandstormId, false, Now, Now, 0, out rearm));
             for (int tick = 0; tick < 10; tick++)
             {
@@ -524,7 +521,7 @@ namespace RoverRally.Tests
         {
             DriveController controller = new DriveController();
 
-            StationCommand command;
+            StationCommand? command;
             Assert.IsTrue(controller.TryToggleArm(FalafelId, false, Now, Now, 0, out command));
             Assert.IsTrue(controller.IsArmed);
 

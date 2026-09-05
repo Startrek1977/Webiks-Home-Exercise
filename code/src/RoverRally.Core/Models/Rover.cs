@@ -26,9 +26,9 @@ namespace RoverRally.Core.Models
         private uint _lastSequence;
 
         public byte Id { get; set; }
-        public string Name { get; set; }
-        public string ChassisType { get; set; }
-        public string RadioSerial { get; set; }
+        public string? Name { get; set; }
+        public string? ChassisType { get; set; }
+        public string? RadioSerial { get; set; }
 
         public RoverStatus Status
         {
@@ -150,11 +150,11 @@ namespace RoverRally.Core.Models
             else Status = RoverStatus.Idle;
         }
 
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
 
-        protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
-            PropertyChangedEventHandler handler = PropertyChanged;
+            PropertyChangedEventHandler? handler = PropertyChanged;
             if (handler != null) handler(this, new PropertyChangedEventArgs(propertyName));
         }
     }

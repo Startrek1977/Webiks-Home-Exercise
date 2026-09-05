@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <WarningsAsErrors>Nullable</WarningsAsErrors>
     <RootNamespace>RoverRally.Core</RootNamespace>
     <AssemblyName>RoverRally.Core</AssemblyName>
     <ProjectGuid>{8F3A1C22-5B47-4E19-9D6A-11C4E7B0A331}</ProjectGuid>

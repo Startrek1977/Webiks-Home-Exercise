@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace RoverRally.Core.Telemetry
 {
@@ -64,7 +65,7 @@ namespace RoverRally.Core.Telemetry
         /// This sits directly on the UDP receive path, so a malformed
         /// datagram is reported as a false return rather than an exception.
         /// </remarks>
-        public static bool TryDecode(byte[] buffer, int length, out TelemetryFrame frame)
+        public static bool TryDecode(byte[]? buffer, int length, [NotNullWhen(true)] out TelemetryFrame? frame)
         {
             frame = null;
 

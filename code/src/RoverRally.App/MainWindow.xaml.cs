@@ -21,10 +21,17 @@ namespace RoverRally.App
     {
         private readonly StationViewModel _vm = new StationViewModel();
 
-        private TelemetryClient _telemetry;
-        private CommandSender _commands;
-        private DispatcherTimer _driveTimer;
-        private GeofenceMonitor _geofence;
+        // Assigned by LoadTrack()/StartLink(), both called from
+        // MainWindow_Loaded before any handler that reads them can run: the
+        // telemetry listener thread that could reach ApplyFrame isn't started
+        // until the end of StartLink(), and _geofence is assigned by the
+        // earlier LoadTrack() call in that same method. null! documents that
+        // invariant instead of forcing a nullable check onto call sites that
+        // can never actually see null.
+        private TelemetryClient _telemetry = null!;
+        private CommandSender _commands = null!;
+        private DispatcherTimer _driveTimer = null!;
+        private GeofenceMonitor _geofence = null!;
 
         private readonly DriveControllerRegistry _driveControllers = new DriveControllerRegistry();
 
@@ -36,7 +43,7 @@ namespace RoverRally.App
         private static readonly Brush QuietStateBrush = CreateQuietStateBrush();
 
         /// <summary>Resolved once; FindResource walks the tree on every call.</summary>
-        private Brush _latchedStateBrush;
+        private Brush? _latchedStateBrush;
         private int _frameCount;
         private readonly HashSet<byte> _fencedAlerted = new HashSet<byte>();
 
@@ -160,12 +167,12 @@ namespace RoverRally.App
         /// from its own DriveController, rather than showing a station-wide
         /// flag that may describe a different vehicle.
         /// </summary>
-        private void ViewModel_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
             if (e.PropertyName == "SelectedRover") UpdateDriveDisplay();
         }
 
-        private void Telemetry_ConnectionStateChanged(object sender, EventArgs e)
+        private void Telemetry_ConnectionStateChanged(object? sender, EventArgs e)
         {
             Dispatcher.BeginInvoke(new Action(delegate
             {
@@ -173,7 +180,7 @@ namespace RoverRally.App
             }));
         }
 
-        private void Telemetry_FrameReceived(object sender, TelemetryReceivedEventArgs e)
+        private void Telemetry_FrameReceived(object? sender, TelemetryReceivedEventArgs e)
         {
             DateTime receivedUtc = e.ReceivedUtc;
             Dispatcher.BeginInvoke(new Action(delegate { ApplyFrame(e.Frame, receivedUtc); }));
@@ -190,7 +197,7 @@ namespace RoverRally.App
         /// </summary>
         private void ApplyFrame(TelemetryFrame frame, DateTime receivedUtc)
         {
-            Rover rover = _vm.Rovers.FirstOrDefault(r => r.Id == frame.RoverId);
+            Rover? rover = _vm.Rovers.FirstOrDefault(r => r.Id == frame.RoverId);
             if (rover == null) return;
 
             rover.ApplyFrame(frame, receivedUtc);
@@ -229,9 +236,9 @@ namespace RoverRally.App
             }
         }
 
-        private void DriveTimer_Tick(object sender, EventArgs e)
+        private void DriveTimer_Tick(object? sender, EventArgs e)
         {
-            Rover rover = _vm.SelectedRover;
+            Rover? rover = _vm.SelectedRover;
             if (rover == null || _commands == null) return;
 
             DriveController drive = _driveControllers.For(rover.Id);
@@ -258,7 +265,7 @@ namespace RoverRally.App
 
         private void Arm_Click(object sender, RoutedEventArgs e)
         {
-            Rover rover = _vm.SelectedRover;
+            Rover? rover = _vm.SelectedRover;
             if (rover == null)
             {
                 MessageBox.Show("Select a rover first.", "RoverRally", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -281,7 +288,7 @@ namespace RoverRally.App
             bool stopWasHeld = drive.IsEmergencyStopLatched ||
                               DriveController.VehicleReportsStopped(rover.IsEmergencyStopped, rover.LastFrameUtc, DateTime.UtcNow);
 
-            StationCommand command;
+            StationCommand? command;
             if (!drive.TryToggleArm(rover.Id, rover.IsEmergencyStopped, rover.LastFrameUtc, DateTime.UtcNow,
                                      (short)ThrottleSlider.Value, out command))
             {
@@ -306,7 +313,7 @@ namespace RoverRally.App
 
         private void EmergencyStop_Click(object sender, RoutedEventArgs e)
         {
-            Rover rover = _vm.SelectedRover;
+            Rover? rover = _vm.SelectedRover;
             if (rover == null) return;
 
             // A stop that quietly does nothing is worse than no button at all,
@@ -361,8 +368,8 @@ namespace RoverRally.App
         /// </summary>
         private void UpdateDriveDisplay()
         {
-            Rover rover = _vm.SelectedRover;
-            DriveController drive = rover == null ? null : _driveControllers.For(rover.Id);
+            Rover? rover = _vm.SelectedRover;
+            DriveController? drive = rover == null ? null : _driveControllers.For(rover.Id);
 
             ArmButton.Content = drive != null && drive.IsArmed ? "DISARM" : "ARM";
 

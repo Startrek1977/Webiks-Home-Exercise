@@ -52,10 +52,7 @@ namespace RoverRally.Tests
         {
             byte[] datagram = SimulatorFrameWriter.WriteTelemetry(AReading());
 
-            TelemetryFrame frame;
-            bool decoded = FrameCodec.TryDecode(datagram, datagram.Length, out frame);
-
-            Assert.IsTrue(decoded);
+            Assert.IsTrue(FrameCodec.TryDecode(datagram, datagram.Length, out TelemetryFrame? frame));
             Assert.AreEqual((byte)7, frame.RoverId);
             Assert.AreEqual(4294967290u, frame.Sequence);
             Assert.AreEqual(1735689600123ul, frame.TimestampMs);
@@ -81,10 +78,7 @@ namespace RoverRally.Tests
         [TestMethod]
         public void DecodesTheGoldenFrameCapturedFromTheSimulator()
         {
-            TelemetryFrame frame;
-            bool decoded = FrameCodec.TryDecode(GoldenTelemetryFrame, GoldenTelemetryFrame.Length, out frame);
-
-            Assert.IsTrue(decoded);
+            Assert.IsTrue(FrameCodec.TryDecode(GoldenTelemetryFrame, GoldenTelemetryFrame.Length, out TelemetryFrame? frame));
             Assert.AreEqual((byte)7, frame.RoverId);
             Assert.AreEqual((ushort)1234, frame.SpeedCmS);
             Assert.AreEqual((short)-1234, frame.TiltDeciDeg);
@@ -104,10 +98,7 @@ namespace RoverRally.Tests
 
             byte[] datagram = SimulatorFrameWriter.WriteTelemetry(reading);
 
-            TelemetryFrame frame;
-            bool decoded = FrameCodec.TryDecode(datagram, datagram.Length, out frame);
-
-            Assert.IsTrue(decoded);
+            Assert.IsTrue(FrameCodec.TryDecode(datagram, datagram.Length, out TelemetryFrame? frame));
             Assert.IsFalse(frame.HasGpsFix);
             Assert.AreEqual(0, frame.LatitudeE7);
             Assert.AreEqual(0, frame.LongitudeE7);
@@ -123,7 +114,7 @@ namespace RoverRally.Tests
 
                 byte[] datagram = SimulatorFrameWriter.WriteTelemetry(reading);
 
-                TelemetryFrame frame;
+                TelemetryFrame? frame;
                 Assert.IsTrue(FrameCodec.TryDecode(datagram, datagram.Length, out frame));
 
                 string because = " for status flags 0x" + flags.ToString("X2") + ".";
@@ -139,7 +130,7 @@ namespace RoverRally.Tests
         {
             byte[] datagram = SimulatorFrameWriter.WriteTelemetry(AReading());
 
-            TelemetryFrame frame;
+            TelemetryFrame? frame;
 
             Assert.IsFalse(FrameCodec.TryDecode(datagram, 36, out frame), "A short frame was accepted.");
             Assert.IsFalse(FrameCodec.TryDecode(datagram, 38, out frame), "An overlong frame was accepted.");
@@ -153,7 +144,7 @@ namespace RoverRally.Tests
             datagram[1] = 0x43; // the command marker, not the telemetry one
             datagram[36] = SimulatorFrameWriter.Crc8(datagram, 0, 36);
 
-            TelemetryFrame frame;
+            TelemetryFrame? frame;
 
             Assert.IsFalse(FrameCodec.TryDecode(datagram, datagram.Length, out frame));
         }
@@ -165,7 +156,7 @@ namespace RoverRally.Tests
             datagram[2] = 0x02;
             datagram[36] = SimulatorFrameWriter.Crc8(datagram, 0, 36);
 
-            TelemetryFrame frame;
+            TelemetryFrame? frame;
 
             Assert.IsFalse(FrameCodec.TryDecode(datagram, datagram.Length, out frame));
         }
@@ -176,7 +167,7 @@ namespace RoverRally.Tests
             byte[] datagram = SimulatorFrameWriter.WriteTelemetry(AReading());
             datagram[26] ^= 0x01; // corrupt the speed and leave the checksum alone
 
-            TelemetryFrame frame;
+            TelemetryFrame? frame;
 
             Assert.IsFalse(FrameCodec.TryDecode(datagram, datagram.Length, out frame));
         }
@@ -184,7 +175,7 @@ namespace RoverRally.Tests
         [TestMethod]
         public void RejectsADatagramShorterThanTheStatedLength()
         {
-            TelemetryFrame frame;
+            TelemetryFrame? frame;
 
             Assert.IsFalse(FrameCodec.TryDecode(new byte[10], 37, out frame));
         }
@@ -192,7 +183,7 @@ namespace RoverRally.Tests
         [TestMethod]
         public void RejectsANullDatagram()
         {
-            TelemetryFrame frame;
+            TelemetryFrame? frame;
 
             Assert.IsFalse(FrameCodec.TryDecode(null, 37, out frame));
         }
@@ -200,7 +191,7 @@ namespace RoverRally.Tests
         [TestMethod]
         public void LeavesNoFrameBehindWhenDecodingFails()
         {
-            TelemetryFrame frame;
+            TelemetryFrame? frame;
 
             FrameCodec.TryDecode(new byte[37], 37, out frame);
 

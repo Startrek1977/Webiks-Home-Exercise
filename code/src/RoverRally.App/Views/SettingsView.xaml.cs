@@ -9,7 +9,7 @@ namespace RoverRally.App.Views
 {
     public partial class SettingsView : UserControl
     {
-        private StationViewModel _vm;
+        private StationViewModel? _vm;
 
         public SettingsView()
         {

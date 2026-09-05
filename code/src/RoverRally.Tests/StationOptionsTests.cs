@@ -11,9 +11,9 @@ namespace RoverRally.Tests
     [TestClass]
     public class StationOptionsTests
     {
-        private static IConfiguration BuildConfiguration(IDictionary<string, string> stationValues)
+        private static IConfiguration BuildConfiguration(IDictionary<string, string>? stationValues)
         {
-            var flattened = new Dictionary<string, string>();
+            var flattened = new Dictionary<string, string?>();
             if (stationValues != null)
             {
                 foreach (KeyValuePair<string, string> pair in stationValues)

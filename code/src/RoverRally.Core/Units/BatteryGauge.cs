@@ -25,7 +25,7 @@ namespace RoverRally.Core.Units
         /// <see cref="ILogger"/> overload directly rather than going through
         /// this field.
         /// </summary>
-        private static ILogger _logger;
+        private static ILogger? _logger;
 
         /// <summary>
         /// A pack at or below <see cref="EmptyMilliVolts"/> - including a
@@ -48,7 +48,7 @@ namespace RoverRally.Core.Units
         /// reading itself is implausible (a failed sensor, a miswired cell),
         /// not that the pack is simply flat or full.
         /// </summary>
-        public static int ToPercent(int milliVolts, ILogger logger)
+        public static int ToPercent(int milliVolts, ILogger? logger)
         {
             if (logger == null) throw new ArgumentNullException(nameof(logger));
 

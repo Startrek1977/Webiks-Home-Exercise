@@ -15,8 +15,8 @@ namespace RoverRally.Core.Telemetry
     {
         private readonly ILogger _logger;
 
-        private UdpClient _udp;
-        private Thread _worker;
+        private UdpClient? _udp;
+        private Thread? _worker;
         private volatile bool _running;
         private volatile bool _reconnecting;
         private int _port;
@@ -26,13 +26,13 @@ namespace RoverRally.Core.Telemetry
         /// logger (#22) so a caller that doesn't care still gets console and
         /// rolling-file output; MainWindow passes a real one explicitly.
         /// </summary>
-        public TelemetryClient(ILogger logger = null)
+        public TelemetryClient(ILogger? logger = null)
         {
             _logger = logger ?? Log.CreateLogger<TelemetryClient>();
         }
 
-        public event EventHandler<TelemetryReceivedEventArgs> FrameReceived;
-        public event EventHandler ConnectionStateChanged;
+        public event EventHandler<TelemetryReceivedEventArgs>? FrameReceived;
+        public event EventHandler? ConnectionStateChanged;
 
         public bool IsRunning
         {
@@ -92,14 +92,14 @@ namespace RoverRally.Core.Telemetry
                     IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
                     byte[] datagram = _udp.Receive(ref sender);
 
-                    TelemetryFrame frame;
+                    TelemetryFrame? frame;
                     if (!FrameCodec.TryDecode(datagram, datagram.Length, out frame))
                     {
                         _logger.LogDebug("Discarded a malformed frame from " + sender + ".");
                         continue;
                     }
 
-                    EventHandler<TelemetryReceivedEventArgs> handler = FrameReceived;
+                    EventHandler<TelemetryReceivedEventArgs>? handler = FrameReceived;
                     if (handler != null) handler(this, new TelemetryReceivedEventArgs(frame));
                 }
                 catch (SocketException ex)
@@ -131,7 +131,7 @@ namespace RoverRally.Core.Telemetry
 
             _reconnecting = value;
 
-            EventHandler handler = ConnectionStateChanged;
+            EventHandler? handler = ConnectionStateChanged;
             if (handler != null) handler(this, EventArgs.Empty);
         }
 

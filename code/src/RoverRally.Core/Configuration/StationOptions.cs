@@ -17,19 +17,25 @@ namespace RoverRally.Core.Configuration
     /// </summary>
     public sealed class StationOptions
     {
-        public string StationName { get; set; }
+        // Defaulted, not `required`: StationOptions.Load() below is the one
+        // production construction site and always supplies every one of
+        // these through a defaulting ReadX helper, but LogTests.cs also
+        // builds one directly to exercise Log.Configure and only cares about
+        // LogLevel/LogDirectory - `required` would force it to fill in
+        // properties it has no reason to set.
+        public string StationName { get; set; } = string.Empty;
         public int TelemetryPort { get; set; }
         public int CommandPort { get; set; }
-        public string CommandHost { get; set; }
-        public string RosterPath { get; set; }
-        public string SessionCachePath { get; set; }
+        public string CommandHost { get; set; } = string.Empty;
+        public string RosterPath { get; set; } = string.Empty;
+        public string SessionCachePath { get; set; } = string.Empty;
         public double TrackNorth { get; set; }
         public double TrackSouth { get; set; }
         public double TrackWest { get; set; }
         public double TrackEast { get; set; }
         public int DriveCommandIntervalMs { get; set; }
         public LogLevel LogLevel { get; set; }
-        public string LogDirectory { get; set; }
+        public string LogDirectory { get; set; } = string.Empty;
 
         /// <summary>
         /// Per-user, non-admin-writable, and outside the exe's own install
@@ -64,13 +70,13 @@ namespace RoverRally.Core.Configuration
 
         private static string ReadString(IConfigurationSection section, string key, string fallback)
         {
-            string raw = section[key];
+            string? raw = section[key];
             return string.IsNullOrEmpty(raw) ? fallback : raw;
         }
 
         private static int ReadInt(IConfigurationSection section, string key, int fallback)
         {
-            string raw = section[key];
+            string? raw = section[key];
             if (string.IsNullOrEmpty(raw)) return fallback;
 
             int parsed;
@@ -82,7 +88,7 @@ namespace RoverRally.Core.Configuration
 
         private static double ReadDouble(IConfigurationSection section, string key, double fallback)
         {
-            string raw = section[key];
+            string? raw = section[key];
             if (string.IsNullOrEmpty(raw)) return fallback;
 
             double parsed;
@@ -105,7 +111,7 @@ namespace RoverRally.Core.Configuration
         /// </summary>
         private static string ReadLogDirectory(IConfigurationSection section, string key, string fallback)
         {
-            string raw = section[key];
+            string? raw = section[key];
             string path = string.IsNullOrWhiteSpace(raw) ? fallback : raw;
             string expanded = Environment.ExpandEnvironmentVariables(path).Trim();
 
@@ -116,7 +122,7 @@ namespace RoverRally.Core.Configuration
 
         private static LogLevel ReadLogLevel(IConfigurationSection section, string key, LogLevel fallback)
         {
-            string raw = section[key];
+            string? raw = section[key];
             if (string.IsNullOrEmpty(raw)) return fallback;
 
             LogLevel parsed;

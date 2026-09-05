@@ -14,7 +14,7 @@ namespace RoverRally.Tests.TestSupport
     {
         public IList<CapturedEntry> Entries { get; } = new List<CapturedEntry>();
 
-        public IDisposable BeginScope<TState>(TState state)
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull
         {
             return NullScope.Instance;
         }
@@ -24,7 +24,7 @@ namespace RoverRally.Tests.TestSupport
             return true;
         }
 
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
             Entries.Add(new CapturedEntry(logLevel, formatter(state, exception), exception));
         }
@@ -41,7 +41,7 @@ namespace RoverRally.Tests.TestSupport
 
         public sealed class CapturedEntry
         {
-            public CapturedEntry(LogLevel level, string message, Exception exception)
+            public CapturedEntry(LogLevel level, string message, Exception? exception)
             {
                 Level = level;
                 Message = message;
@@ -50,7 +50,7 @@ namespace RoverRally.Tests.TestSupport
 
             public LogLevel Level { get; }
             public string Message { get; }
-            public Exception Exception { get; }
+            public Exception? Exception { get; }
         }
 
         private sealed class NullScope : IDisposable

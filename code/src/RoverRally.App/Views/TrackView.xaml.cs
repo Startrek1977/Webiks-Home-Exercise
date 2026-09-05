@@ -28,7 +28,7 @@ namespace RoverRally.App.Views
         private readonly Dictionary<byte, TextBlock> _labels = new Dictionary<byte, TextBlock>();
         private readonly Dictionary<byte, Polyline> _trails = new Dictionary<byte, Polyline>();
 
-        private TrackProjection _projection;
+        private TrackProjection? _projection;
 
         public TrackView()
         {
@@ -101,7 +101,7 @@ namespace RoverRally.App.Views
 
         private Ellipse GetMarker(Rover rover)
         {
-            Ellipse marker;
+            Ellipse? marker;
             if (_markers.TryGetValue(rover.Id, out marker)) return marker;
 
             Color colour = RoverColours[rover.Id % RoverColours.Length];
@@ -133,7 +133,7 @@ namespace RoverRally.App.Views
 
         private Polyline GetTrail(Rover rover)
         {
-            Polyline trail;
+            Polyline? trail;
             if (_trails.TryGetValue(rover.Id, out trail)) return trail;
 
             trail = new Polyline();

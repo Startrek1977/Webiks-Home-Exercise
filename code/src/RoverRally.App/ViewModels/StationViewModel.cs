@@ -13,7 +13,7 @@ namespace RoverRally.App.ViewModels
     /// </summary>
     public class StationViewModel : INotifyPropertyChanged
     {
-        private Rover _selectedRover;
+        private Rover? _selectedRover;
         private string _linkState = "Disconnected";
         private SpeedUnit _speedUnit = SpeedUnit.KilometresPerHour;
 
@@ -24,7 +24,7 @@ namespace RoverRally.App.ViewModels
 
         public ObservableCollection<Rover> Rovers { get; private set; }
 
-        public Rover SelectedRover
+        public Rover? SelectedRover
         {
             get { return _selectedRover; }
             set
@@ -76,11 +76,11 @@ namespace RoverRally.App.ViewModels
             OnPropertyChanged("SelectedSpeedDisplay");
         }
 
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
 
-        protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
-            PropertyChangedEventHandler handler = PropertyChanged;
+            PropertyChangedEventHandler? handler = PropertyChanged;
             if (handler != null) handler(this, new PropertyChangedEventArgs(propertyName));
         }
     }

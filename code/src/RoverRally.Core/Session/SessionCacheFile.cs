@@ -85,7 +85,7 @@ namespace RoverRally.Core.Session
             Buffer.BlockCopy(BitConverter.GetBytes(record.PeakSpeedCmS), 0, buffer, PeakSpeedCmSOffset, 4);
             // ReservedOffset is left as zero.
 
-            string directory = Path.GetDirectoryName(path);
+            string? directory = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
             {
                 Directory.CreateDirectory(directory);

@@ -21,7 +21,7 @@ namespace RoverRally.Core.Telemetry
         /// logger (#22) so a caller that doesn't care still gets console and
         /// rolling-file output; MainWindow passes a real one explicitly.
         /// </summary>
-        public CommandSender(string host, int port, ILogger logger = null)
+        public CommandSender(string host, int port, ILogger? logger = null)
         {
             _host = host;
             _port = port;
