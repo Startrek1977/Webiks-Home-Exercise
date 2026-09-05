@@ -10,10 +10,6 @@
             <Path Stroke="#FF6B7583" StrokeThickness="1" StrokeDashArray="6 6" Fill="Transparent"
                   Data="M 150,120 L 570,120 A 90,90 0 0 1 570,300 L 150,300 A 90,90 0 0 1 150,120 Z" />
 
-            <!-- Skid pad -->
-            <Ellipse Canvas.Left="250" Canvas.Top="330" Width="120" Height="120"
-                     Stroke="#FF4A525E" StrokeThickness="22" Fill="Transparent" />
-
             <!-- Start / finish -->
             <Rectangle Canvas.Left="298" Canvas.Top="103" Width="4" Height="34" Fill="#FFE6E9EF" />
             <TextBlock Canvas.Left="308" Canvas.Top="104" Text="START" Foreground="#FF8A93A3" FontSize="10" />
