@@ -72,7 +72,7 @@ For a station laptop with nothing installed — no .NET runtime, no SDK —
 publish a self-contained single-file build:
 
 ```bash
-dotnet publish code/src/RoverRally.App/RoverRally.App.csproj -c Release -r win-x64 --self-contained true
+dotnet publish src/RoverRally.App/RoverRally.App.csproj -c Release -r win-x64 --self-contained true
 ```
 
 This produces `src/RoverRally.App/bin/Release/win-x64/publish/RoverRally.Station.exe`
