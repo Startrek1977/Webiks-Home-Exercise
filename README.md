@@ -66,6 +66,27 @@ Then start the station. Vehicles appear on the Track tab within a few seconds.
 The station's own ports are in `src/RoverRally.App/appsettings.json`; change
 both sides together if you move them.
 
+## Publish
+
+For a station laptop with nothing installed — no .NET runtime, no SDK —
+publish a self-contained single-file build:
+
+```bash
+dotnet publish code/src/RoverRally.App/RoverRally.App.csproj -c Release -r win-x64 --self-contained true
+```
+
+This produces `src/RoverRally.App/bin/Release/win-x64/publish/RoverRally.Station.exe`
+(a genuine standalone apphost, ~155 MB) alongside `appsettings.json`, `Data\`,
+and two `.pdb` files kept for post-incident debugging — copy that whole
+folder to the target machine and run the exe directly. `appsettings.json`
+and `Data\rovers.json` remain plain, editable files after publishing (see
+Configuration below); operators can still edit the roster on the station
+laptop without republishing anything, and the log still lands under
+`%LocalAppData%\RoverLink\Station\Logs` regardless of where the folder is
+copied to.
+
+Trimming is intentionally not used: WPF does not support it reliably.
+
 ## Configuration
 
 | What | Where |

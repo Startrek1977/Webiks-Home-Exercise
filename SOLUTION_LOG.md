@@ -1882,4 +1882,89 @@ from 162 by the 2 new cases.
 
 ---
 
+### Publish as a self-contained single file (#31)
+
+*So the station can be copied to a laptop with nothing installed.*
+
+**What I found.** Nothing in the repo mentioned `RuntimeIdentifier`,
+`SelfContained`, or `PublishSingleFile` anywhere - a repo-wide grep came back
+empty across every `.csproj`, workflow, and doc. More usefully, every path
+the app actually touches was already anchored the right way for this to work
+with no source changes at all: `App.xaml.cs` loads `appsettings.json` off
+`AppDomain.CurrentDomain.BaseDirectory`, `MainWindow.xaml.cs` resolves
+`RosterPath`/`SessionCachePath` the same way, and `StationOptions.ReadLogDirectory`
+(#22) roots a relative `LogDirectory` there too - never
+`Environment.CurrentDirectory`. .NET's own single-file docs say
+`AppContext.BaseDirectory` for a published single-file app is the directory
+containing the one exe, not a temp extraction folder, so the issue's own
+open question - will the roster, config, and log paths survive a laptop
+copy - was already answered by decisions earlier issues made for unrelated
+reasons. `appsettings.json`, `Data\rovers.json`, and `Data\session-cache.bin`
+are plain `<None Update>` items with `CopyToOutputDirectory=PreserveNewest`,
+which `dotnet publish` copies to the publish folder exactly the way `dotnet
+build` copies them to `bin\`, so keeping the roster external needed no
+decision either - it already was. The one thing I didn't take on faith:
+whether publishing `RoverRally.App.csproj` directly still needs
+`-p:Platform=x64` the way `msbuild RoverRally.sln` does. It doesn't -
+`PlatformTarget=x64` is already unconditioned in that csproj, the same fix
+#13/#14 already applied to the Debug/Release property groups - and I
+confirmed it by actually running the publish without the flag rather than
+reasoning it through on paper.
+
+**What I decided.** One new `PropertyGroup` in `RoverRally.App.csproj`,
+conditioned on `'$(RuntimeIdentifier)' != ''`, setting `SelfContained`,
+`PublishSingleFile`, and `IncludeNativeLibrariesForSelfExtract` to `true`.
+The condition means the block only ever activates when someone actually
+passes `-r win-x64` on a publish command line - `RuntimeIdentifier` is never
+predeclared unconditionally in the project - so plain `dotnet build`/`dotnet
+test`/`msbuild RoverRally.sln` stay completely untouched and the documented
+`bin\Debug|Release\RoverRally.Station.exe` build path doesn't move.
+`IncludeNativeLibrariesForSelfExtract` specifically because WPF still needs a
+handful of native interop DLLs at startup (`PresentationNative_cor3.dll`,
+`wpfgfx_cor3.dll`, `vcruntime140_cor3.dll`) even under `PublishSingleFile` -
+without it they land as loose files next to the exe, which defeats "single
+executable" in the way that actually matters to someone copying a folder.
+`PublishTrimmed` stays unset on purpose - WPF doesn't reliably support
+trimming, and this issue isn't the place to find out how unreliably. No
+`-o`/`PublishDir` override: the SDK default, `bin\Release\win-x64\publish\`,
+sits physically apart from the plain build's `bin\Release\`, so a publish and
+a build can never clobber each other's output. Documented the command in
+both `README.md` (a new Publish section) and `CLAUDE.md`'s Commands section,
+rather than only one of the two, since the acceptance criteria name the
+README specifically but future work on this repo reads CLAUDE.md first.
+
+**How I verified it.** Rebuilt `Debug|x64` via the documented MSBuild
+command and ran `dotnet test` first, before touching the publish path at all
+- 164 of 164 passed, `bin\Debug\` unchanged - confirming the new property
+group really is inert for every command that doesn't pass a RID. Then
+`dotnet publish code/src/RoverRally.App/RoverRally.App.csproj -c Release -r
+win-x64 --self-contained true`, no `-p:Platform=x64`, no warnings. The
+output at `bin\Release\win-x64\publish\` is exactly `RoverRally.Station.exe`
+(a genuine PE32+ apphost, ~155 MB), `RoverRally.Station.pdb` and
+`RoverRally.Core.pdb`, `appsettings.json`, and `Data\` - no loose
+`PresentationNative_cor3.dll`/`wpfgfx_cor3.dll`/`vcruntime140_cor3.dll`, no
+loose `.deps.json`/`.runtimeconfig.json`. I copied that whole folder outside
+the repo, started the real simulator, and launched the copied exe directly
+- not `dotnet run`, and with `dotnet`/`Program Files\dotnet` stripped from
+the launching shell's `PATH` - and it started clean: loaded the roster,
+read the session cache (no legacy bytes left to migrate, same as any other
+second run against this fixture), began decoding telemetry on UDP 14550, and
+logged to `%LocalAppData%\RoverLink\Station\Logs\station-<date>.log` - not
+inside the copied folder, confirming #22's log-path default survives a
+laptop-style copy exactly as the issue asks. I then edited
+`Data\rovers.json` in the copied folder, adding a sixth rover, and relaunched
+- the log read `Loaded 6 rover(s) from the roster.`, confirming the roster
+stays editable by site staff with no republish.
+
+This machine already has three .NET SDKs and their matching runtimes
+installed, so I could not provision a genuinely clean machine inside this
+session to fully satisfy "runs on a machine with no .NET installed." The
+PATH-stripped launch of a real apphost above is the closest practical
+substitute I could run here, and I'm recording that as a known gap rather
+than claiming the literal clean-machine check - true verification on
+hardware or a clean VM with no .NET footprint at all is still owed before
+this is called fully proven.
+
+---
+
 ## Additional Notes
