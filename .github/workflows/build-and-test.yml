@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: windows-latest
@@ -25,4 +28,4 @@ jobs:
         run: dotnet build code/RoverRally.sln --no-restore --configuration Release -p:Platform=x64
 
       - name: Test
-        run: dotnet test code/src/RoverRally.Tests/RoverRally.Tests.csproj --no-restore --configuration Release -p:Platform=x64 --verbosity normal
+        run: dotnet test code/src/RoverRally.Tests/RoverRally.Tests.csproj --no-restore --no-build --configuration Release -p:Platform=x64 --verbosity normal
