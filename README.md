@@ -39,8 +39,7 @@ dotnet test src/RoverRally.Tests/RoverRally.Tests.csproj
 Add `--filter "FullyQualifiedName~Crc8Tests"` to run one class, or
 `--filter "FullyQualifiedName~Crc8Tests.SomeTestMethod"` for a single test.
 
-`TrackProjectionTests.PlacesTheStartLine` is skipped and always has been.
-Anything else red or skipped is a regression.
+No test in this suite is skipped. Anything red or skipped is a regression.
 
 ## Running
 
