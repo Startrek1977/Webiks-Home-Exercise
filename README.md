@@ -61,14 +61,14 @@ Then start the station. Vehicles appear on the Track tab within a few seconds.
 | `--host` | 127.0.0.1 |
 | `--rate` | 5 (Hz) |
 
-The station's own ports are in `src/RoverRally.App/App.config`; change both sides
-together if you move them.
+The station's own ports are in `src/RoverRally.App/appsettings.json`; change
+both sides together if you move them.
 
 ## Configuration
 
 | What | Where |
 |---|---|
-| Ports, track extent, file paths | `src/RoverRally.App/App.config` |
+| Ports, track extent, file paths | `src/RoverRally.App/appsettings.json` |
 | Fleet roster | `src/RoverRally.App/Data/rovers.json` |
 | Completed runs | `src/RoverRally.App/Data/session-cache.bin` |
 | Operator preferences | Registry, `HKCU\Software\RoverLink\Station` |

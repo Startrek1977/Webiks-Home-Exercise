@@ -1,8 +1,9 @@
 # RL-100 Telemetry Link — Integration Notes
 
-**Vendor:** RoverLink Systems Ltd.
-**SDK version in use:** 1.4.2 (`lib/RoverLink.Telemetry.dll`)
-**Last reviewed:** March 2019
+**Vendor:** RoverLink Systems Ltd. (stopped trading; no longer integrated)
+**SDK last integrated:** 1.4.2 (`lib/RoverLink.Telemetry.dll`), removed in #5
+**Wire format last reviewed:** March 2019 — still the authority for the frame
+layouts below; see "Codec" for how it is actually implemented today
 
 These notes were copied out of the RL-100 Integration Manual (revision D) when we
 first wired the station up. The manual itself is in the site cabinet if you need
