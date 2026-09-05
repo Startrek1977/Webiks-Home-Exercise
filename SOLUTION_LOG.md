@@ -1017,6 +1017,24 @@ Rebuilt the solution and reran the test suite after the deletion - 87 passed,
 added coverage; the skip and failure counts are what matter here, and both
 are unchanged).
 
+**The Track tab's skid-pad ellipse (#66).** Much smaller than the three
+above, but the same judgement call in miniature. While manually verifying
+#26 against the real simulator I noticed `TrackView.xaml` draws a static
+circle below the oval loop on every run, regardless of site. The oval right
+above it is commented "drawn to scale from the site survey" and its geometry
+is a real stadium shape; the circle's only comment is `<!-- Skid pad -->`,
+with no survey backing, no lat/lon anchoring through `TrackProjection`
+(everything else on the map that's meant to be real - the geofence polygon,
+the rover markers - goes through `TryProject`), no config key, no test, and
+no mention in either doc. A repo-wide search turned up exactly one hit for
+"skid pad": the XAML comment itself. I raised #66 to make the removal a
+decision on record rather than a drive-by edit, and decided to delete it
+outright rather than invent per-site configuration for a shape no site has
+ever actually measured - that would have been new speculative surface area,
+not a fix. `TrackView.xaml.cs` never referenced it, so the change is a
+single XAML deletion. Rebuilt and reran the suite afterward - 147 passed, 0
+skipped, 0 failed, unchanged from before the deletion.
+
 ---
 
 ## Logging
