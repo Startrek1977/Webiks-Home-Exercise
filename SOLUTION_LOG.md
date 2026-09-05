@@ -1719,4 +1719,54 @@ just with the compiler now able to prove most of it.
 
 ---
 
+### GitHub Actions workflow to build and test (#29)
+
+*A workflow that builds the solution and runs the tests on push and pull
+request.*
+
+**What I found.** `code/RoverRally.sln` only declares `Debug|x64` and
+`Release|x64` - no `AnyCPU` fallback - so a solution-level `dotnet build`
+needs `-p:Platform=x64` passed explicitly, the same requirement CLAUDE.md
+already documents for the local MSBuild.exe incantation. `RoverRally.Tests.csproj`
+pins its own `PlatformTarget` and `OutputPath` directly, so `dotnet test`
+against it needs no extra flags beyond `--configuration`. `RoverRally.Simulator`
+is deliberately outside the `.sln` (plain `net8.0`), so it stays out of this
+workflow's build entirely - it's not "the solution" the acceptance criteria
+asks for, and CLAUDE.md is explicit that it's never to be touched. There was
+no `.github/workflows/` directory and nothing in `docs/` referencing CI, so
+this was a clean addition with nothing stale to reconcile.
+
+**What I decided.** `windows-latest`, since WPF won't build on Linux runners.
+`actions/setup-dotnet@v4` pins `8.0.x` explicitly rather than trusting
+whatever SDK the runner image happens to ship, so the workflow doesn't
+silently drift when GitHub updates the image. Three steps - restore, build,
+test - run plain `dotnet` CLI commands against `code/RoverRally.sln` and
+`code/src/RoverRally.Tests/RoverRally.Tests.csproj` respectively, matching
+what #15's retarget to `net8.0-windows` made possible (no MSBuild.exe or
+.NET Framework targeting pack needed, unlike before that issue). Triggers are
+`push` to `main` plus `pull_request` on any target branch, rather than `push`
+on every branch, so a PR gets exactly one run instead of two. Test reporting
+stays minimal: `dotnet test`'s own non-zero exit code on a failing test
+already fails the job and satisfies the acceptance criterion, so I didn't
+reach for a third-party check-annotation action just because the issue
+mentioned it as something to "consider" - that would have added a dependency
+and a permission (`checks: write`) for a cosmetic improvement over what the
+job's pass/fail state already shows. The build configuration is `Release`,
+not the `Debug` the local dev commands use, since CI is meant to confirm the
+shippable configuration actually builds and passes, not mirror a developer's
+inner loop. A badge linking to the workflow went at the top of `README.md`,
+directly under the title.
+
+**How I verified it.** Ran the exact three commands the workflow uses -
+`dotnet restore code/RoverRally.sln`, then `dotnet build code/RoverRally.sln
+--no-restore --configuration Release -p:Platform=x64`, then `dotnet test
+code/src/RoverRally.Tests/RoverRally.Tests.csproj --no-restore --configuration
+Release -p:Platform=x64` - locally before pushing: the Release|x64 build came
+back with 0 warnings and 0 errors, and all 147 of 147 tests passed, nothing
+skipped. The actual GitHub-hosted `windows-latest` run is what the pull
+request itself now demonstrates - watch the Actions tab on the PR for the
+green check the acceptance criteria asks for.
+
+---
+
 ## Additional Notes

@@ -1,0 +1,31 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore code/RoverRally.sln
+
+      - name: Build
+        run: dotnet build code/RoverRally.sln --no-restore --configuration Release -p:Platform=x64
+
+      - name: Test
+        run: dotnet test code/src/RoverRally.Tests/RoverRally.Tests.csproj --no-restore --no-build --configuration Release -p:Platform=x64 --verbosity normal
