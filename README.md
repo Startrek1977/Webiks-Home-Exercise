@@ -1,5 +1,7 @@
 # RoverRally Station
 
+[![Build and Test](https://github.com/Startrek1977/Webiks-Home-Exercise/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/Startrek1977/Webiks-Home-Exercise/actions/workflows/build-and-test.yml)
+
 Ground control station for the rover fleet at Kadima Proving Ground.
 
 ```
