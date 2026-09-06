@@ -2028,6 +2028,81 @@ in actual Excel - is still owed before I'd call this issue completely done.
 
 ---
 
+### Tag-triggered release workflow that publishes the station (#74)
+
+*Extremely optional - closes the gap between #31's publish command and an
+actual, reproducible, versioned artifact.*
+
+**What I found.** `.github/workflows/build-and-test.yml` (#29) was, and
+still is, the only workflow, and it builds nothing installable - it exists
+to prove the tree compiles and the suite passes, not to produce a release.
+#31's publish command is real and already verified, but running it depends
+on whoever's machine it's typed on and whatever their working tree happens
+to contain at the time; there is no way to answer "which commit is this
+build from" for anything produced that way. A `v1.0` tag already exists on
+this repo, pointing at the current `HEAD`, but with no GitHub Release
+attached to it anywhere - so this is the first release-*workflow*, not the
+first tag, and pushing this change doesn't retroactively trigger anything
+against that existing tag.
+
+**What I decided.** Reused #29's job shape verbatim for restore/build/test -
+same `windows-latest` runner, same `actions/setup-dotnet@v4` pinned to
+`8.0.x`, same three commands including `-p:Platform=x64` for the `.sln` -
+rather than inventing a second way to prove a green tree. A failing build or
+test stops the job by default before the publish step ever runs, which is
+what "a red tree cannot produce a release" needs; no second, `needs:`-gated
+job was necessary for that guarantee. The publish step is #31's exact
+command against `RoverRally.App.csproj` directly, not the `.sln` - no
+`-p:Platform=x64`, per CLAUDE.md's note that `PlatformTarget=x64` is already
+unconditioned there - and deliberately keeps its own implicit restore rather
+than reusing `--no-restore`, since a `win-x64` publish needs its own
+runtime-package restore that the solution-level restore step doesn't cover.
+Packaged the whole publish folder into one zip with PowerShell's built-in
+`Compress-Archive` - no third-party action needed for that - rather than
+attaching the `.exe` and `Data\` as separate loose assets, since a GitHub
+Release can only attach files, not raw folders, and `Data\rovers.json`
+needs to stay inside a real `Data\` subfolder next to the exe for
+`appsettings.json`'s `RosterPath` to resolve after someone unzips it -
+exactly #31's own "copy the whole folder" framing, just zipped for
+distribution instead of copied by hand. `gh release create` (GitHub CLI,
+preinstalled on hosted runners) creates the Release rather than a
+third-party marketplace action, matching #29's own stated preference not to
+add a dependency for something the built-in tooling already covers. The
+Release is created as a `--draft` rather than published live, so a
+versioned public artifact gets a human glance before anyone outside this
+repo can see it. `contents: write` is granted at the job level only, not the
+workflow level (which stays `contents: read`), matching the token hardening
+#29 already applied.
+
+**How I verified it.** Ran the workflow's own commands locally, in the same
+order and with the same flags: `dotnet restore code/RoverRally.sln`, then
+`dotnet build code/RoverRally.sln --no-restore --configuration Release
+-p:Platform=x64` (0 warnings, 0 errors), then `dotnet test
+code/src/RoverRally.Tests/RoverRally.Tests.csproj --no-restore --no-build
+--configuration Release -p:Platform=x64` - 169 of 169 passed, 0 skipped,
+unchanged from #32. Then `dotnet publish
+code/src/RoverRally.App/RoverRally.App.csproj -c Release -r win-x64
+--self-contained true` - output at
+`code/src/RoverRally.App/bin/Release/win-x64/publish/` is exactly
+`RoverRally.Station.exe` (~155 MB), `RoverRally.Station.pdb`,
+`RoverRally.Core.pdb`, `appsettings.json`, and `Data\` (`rovers.json`,
+`session-cache.bin`) - the identical shape #31 already verified, nothing
+different. I then ran the zip step's own `Compress-Archive` command against
+that real publish folder and inspected the resulting archive's entries
+directly rather than assuming the folder structure survives: `Data/rovers.json`
+and `Data/session-cache.bin` both come back nested under `Data/`, not
+flattened alongside the exe, confirming the roster path stays resolvable
+after someone unzips this on a target machine.
+
+I have not pushed a real tag to watch this workflow run on GitHub for real;
+that is still owed, and needs a genuinely new tag (`v1.0` already exists
+with no Release attached, so reusing it wouldn't exercise anything). That
+was a deliberate choice - pushing a tag creates public, hard-to-fully-undo
+CI state, so I asked before doing it rather than assuming it was fine, and
+it's still pending at the time of writing.
+
+---
+
 ## Additional Notes
 
 This is the closing entry, written when the tracking epic (#33) was the last

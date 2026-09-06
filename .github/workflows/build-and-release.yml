@@ -1,0 +1,52 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore code/RoverRally.sln
+
+      - name: Build
+        run: dotnet build code/RoverRally.sln --no-restore --configuration Release -p:Platform=x64
+
+      - name: Test
+        run: dotnet test code/src/RoverRally.Tests/RoverRally.Tests.csproj --no-restore --no-build --configuration Release -p:Platform=x64 --verbosity normal
+
+      - name: Publish win-x64
+        run: dotnet publish code/src/RoverRally.App/RoverRally.App.csproj -c Release -r win-x64 --self-contained true
+
+      - name: Package release archive
+        shell: pwsh
+        run: |
+          $zipName = "RoverRally.Station-${{ github.ref_name }}-win-x64.zip"
+          Compress-Archive -Path "code/src/RoverRally.App/bin/Release/win-x64/publish/*" -DestinationPath $zipName
+
+      - name: Create draft GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" `
+            "RoverRally.Station-${{ github.ref_name }}-win-x64.zip" `
+            --title "${{ github.ref_name }}" `
+            --generate-notes `
+            --draft
