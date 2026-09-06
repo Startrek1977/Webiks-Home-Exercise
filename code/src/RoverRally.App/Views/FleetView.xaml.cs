@@ -34,11 +34,11 @@ namespace RoverRally.App.Views
 
         public void SetHistory(IList<SessionCacheRecord> records)
         {
-            _historyRecords = records;
+            _historyRecords = records.Reverse().ToList();
 
             List<HistoryRow> rows = new List<HistoryRow>();
 
-            foreach (SessionCacheRecord record in records.Reverse())
+            foreach (SessionCacheRecord record in _historyRecords)
             {
                 rows.Add(new HistoryRow(record, NameFor(record.RoverId)));
             }
@@ -76,7 +76,7 @@ namespace RoverRally.App.Views
                 string csv = RunHistoryCsvExporter.BuildCsv(_historyRecords, NameFor);
                 File.WriteAllText(dialog.FileName, csv, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
             }
-            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            catch (Exception ex)
             {
                 Log.Error("Failed to export run history to " + dialog.FileName, ex);
                 MessageBox.Show("Could not save the export file: " + ex.Message, "Export Run History",
