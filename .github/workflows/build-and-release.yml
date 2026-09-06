@@ -1,0 +1,171 @@
+name: Build and Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build-and-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload:
+    runs-on: windows-latest
+
+    steps:
+      - name: Debug Event Information
+        run: |
+          echo "Event Name: ${{ github.event_name }}"
+          echo "Event Action: ${{ github.event.action }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "SHA: ${{ github.sha }}"
+          if ("${{ github.event_name }}" -eq "release") {
+            echo "Release Tag: ${{ github.event.release.tag_name }}"
+            echo "Release Name: ${{ github.event.release.name }}"
+            echo "Release ID: ${{ github.event.release.id }}"
+            echo "Is Prerelease: ${{ github.event.release.prerelease }}"
+            echo "Is Draft: ${{ github.event.release.draft }}"
+          }
+        shell: pwsh
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+          cache: true
+          cache-dependency-path: src/**/packages.lock.json
+
+      - name: Restore dependencies
+        run: |
+          dotnet restore src/Rafael.Calculator.Wpf.Standard/Rafael.Calculator.Wpf.Standard.csproj
+          dotnet restore src/Rafael.Calculator.Wpf.Scientific/Rafael.Calculator.Wpf.Scientific.csproj
+          dotnet restore src/Rafael.Calculator.Wpf/Rafael.Calculator.Wpf.csproj
+          dotnet restore src/Rafael.Calculator.Core/Rafael.Calculator.Core.csproj
+          dotnet restore src/Rafael.Calculator.Operators/Rafael.Calculator.Operators.csproj
+          dotnet restore src/Rafael.Calculator.Shared/Rafael.Calculator.Shared.csproj
+          dotnet restore src/Rafael.Calculator.Infrastructure/Rafael.Calculator.Infrastructure.csproj
+          dotnet restore src/Rafael.Calculator.Standard.Logic/Rafael.Calculator.Standard.Logic.csproj
+          dotnet restore src/Rafael.Calculator.Scientific.Logic/Rafael.Calculator.Scientific.Logic.csproj
+          dotnet restore src/Rafael.Calculator.Wpf.Controls/Rafael.Calculator.Wpf.Controls.csproj
+          dotnet restore src/Rafael.Calculator.Programmer.Logic/Rafael.Calculator.Programmer.Logic.csproj
+          dotnet restore src/Rafael.Calculator.Wpf.Programmer/Rafael.Calculator.Wpf.Programmer.csproj
+        shell: pwsh
+
+      - name: Build solution
+        run: |
+          dotnet build src/Rafael.Calculator.Wpf.Standard/Rafael.Calculator.Wpf.Standard.csproj `
+            --configuration Release --no-restore
+          dotnet build src/Rafael.Calculator.Wpf.Scientific/Rafael.Calculator.Wpf.Scientific.csproj `
+            --configuration Release --no-restore
+          dotnet build src/Rafael.Calculator.Wpf.Programmer/Rafael.Calculator.Wpf.Programmer.csproj `
+            --configuration Release --no-restore
+          dotnet build src/Rafael.Calculator.Wpf/Rafael.Calculator.Wpf.csproj `
+            --configuration Release --no-restore
+        shell: pwsh
+
+      - name: Publish application (Framework-dependent)
+        run: |
+          dotnet publish src/Rafael.Calculator.Wpf/Rafael.Calculator.Wpf.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --output ./publish/framework-dependent `
+            --self-contained false `
+            -p:SatelliteResourceLanguages=en
+        shell: pwsh
+
+      - name: Publish application (Self-contained win-x64)
+        run: |
+          dotnet publish src/Rafael.Calculator.Wpf/Rafael.Calculator.Wpf.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --output ./publish/self-contained-win-x64 `
+            --self-contained true `
+            -p:SatelliteResourceLanguages=en
+        shell: pwsh
+
+      - name: Copy plugin DLLs into publish outputs
+        run: |
+          $src = "artifacts/Release/net10.0-windows"
+          foreach ($dst in @("./publish/framework-dependent", "./publish/self-contained-win-x64")) {
+            Get-ChildItem -Path $src -Filter "Rafael.Calculator.*.dll" | ForEach-Object {
+              $dest = Join-Path $dst $_.Name
+              if (-not (Test-Path $dest)) {
+                Copy-Item $_.FullName -Destination $dst
+              }
+            }
+          }
+        shell: pwsh
+
+      - name: Remove PDB files from publish outputs
+        run: |
+          Remove-Item -Path "./publish/framework-dependent/*.pdb" -Force -ErrorAction SilentlyContinue
+          Remove-Item -Path "./publish/self-contained-win-x64/*.pdb" -Force -ErrorAction SilentlyContinue
+        shell: pwsh
+
+      - name: Create zip archives
+        run: |
+          # Determine version tag
+          if ("${{ github.event_name }}" -eq "release") {
+            $version = "${{ github.event.release.tag_name }}"
+          } else {
+            $version = "${{ github.sha }}".Substring(0, 7)
+          }
+
+          echo "Using version: $version"
+
+          # Includes .NET 10 runtime — runs without any prerequisites
+          Compress-Archive -Path ./publish/self-contained-win-x64/* `
+            -DestinationPath "Rafael-Calculator-${version}-self-contained-win-x64.zip"
+
+          # Requires .NET 10 Desktop Runtime installed on the user's machine
+          Compress-Archive -Path ./publish/framework-dependent/* `
+            -DestinationPath "Rafael-Calculator-${version}-framework-dependent.zip"
+        shell: pwsh
+
+      - name: Upload release assets
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            Rafael-Calculator-*.zip
+          append_body: true
+          body: |
+
+            ---
+            ### Downloads
+
+            | Package | Prerequisites |
+            |---------|---------------|
+            | `*-self-contained-win-x64.zip` | None — the .NET 10 runtime is bundled. Runs on any 64-bit Windows 10 / 11 machine. |
+            | `*-framework-dependent.zip` | [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) must be installed. Smaller download. |
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build artifacts (for testing)
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v6
+        with:
+          name: build-artifacts
+          path: |
+            Rafael-Calculator-*.zip
+          retention-days: 7
+
+      - name: Update release badge Gist
+        if: github.event_name == 'release'
+        uses: schneegans/dynamic-badges-action@v1.9.0
+        with:
+          auth: ${{ secrets.GIST_TOKEN }}
+          gistID: 586ef6aab304a77e3dd316d31642618b
+          filename: rafael-calculator-release.json
+          label: release
+          message: ${{ github.event.release.tag_name }}
+          color: blue

@@ -112,6 +112,13 @@ Track tab panel follows.
 The lower grid is the recent run history, read from the session cache. It shows
 the last few completed runs with duration, distance covered and peak speed.
 
+**Export Run History (CSV)**, above that grid, saves the completed-run history
+to a CSV file you choose — it does not include the live readings in the grid
+above, only completed runs. It opens a normal Windows save dialog defaulting
+to your Documents folder with a timestamped filename; open the result in Excel
+or hand it to whoever asked for the data. If there are no completed runs yet,
+clicking it tells you so instead of opening the save dialog.
+
 ---
 
 ## Settings tab

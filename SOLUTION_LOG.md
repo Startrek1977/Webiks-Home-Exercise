@@ -1967,4 +1967,87 @@ this is called fully proven.
 
 ---
 
+### Export run telemetry to CSV from the Fleet tab (#32)
+
+*Let a marshal save what the Fleet tab shows to a file.*
+
+**What I found.** The Fleet tab shows two genuinely different datasets, and
+the issue itself flagged the ambiguity rather than picking one: the live
+`FleetGrid` (current per-rover readings, redrawn on every telemetry tick,
+nothing retained once redrawn) and the `HistoryGrid` (completed runs, read
+from `session-cache.bin` via `SessionCacheRecord` - rover id, start/end UTC
+ticks, total distance, peak speed; no per-lap or per-frame breakdown is
+persisted anywhere, so "run telemetry" can't mean anything finer-grained
+than that). Neither `SaveFileDialog` nor any other file-picker had ever been
+used anywhere in this app, and there's no `ICommand`/`RelayCommand`
+infrastructure at all - every existing control is a plain `Click` handler in
+code-behind, which is what any new button here needed to match. I asked
+rather than guessed which dataset to export, since the issue explicitly
+called the choice out as open: completed run history, not the live
+snapshot, because it's genuine retained data rather than "whatever happens
+to be on screen right now," and it's what actually persists across a
+restart.
+
+**What I decided.** A new `RunHistoryCsvExporter` in `RoverRally.Core.Export`
+holds all the formatting logic and takes a rover-name-resolving delegate
+rather than a `Rover`/`StationViewModel` reference, specifically so it stays
+directly testable from `RoverRally.Tests` with no WPF in the loop - the same
+principle #20's `DriveController` extraction and #36's `Rover.ApplyFrame`
+extraction already established for this codebase. Every number and
+timestamp is formatted with `CultureInfo.InvariantCulture` explicitly at
+each call site rather than by swapping the thread's culture globally, so the
+output can never depend on the station's own locale - directly answering
+the issue's own warning that a comma decimal separator would corrupt the
+file for a customer visiting from a country that uses one. Timestamps are
+ISO-8601 UTC (`yyyy-MM-ddTHH:mm:ssZ`); rover names are always double-quoted
+and internally quote-escaped per RFC 4180, since they're the one free-text
+field and could contain a comma or a quote. `FleetView.xaml` gained an
+"Export Run History (CSV)" button next to "Recent runs," with a tooltip
+stating plainly that it exports the completed-run history below, not the
+live grid above - that's what "say so in the UI" meant in practice.
+`FleetView.xaml.cs` wires it to a `SaveFileDialog` defaulting to the
+Documents folder with a timestamped filename, writes the file as UTF-8 with
+a BOM (without the BOM, Excel on Windows guesses ANSI and can mangle a
+non-ASCII rover name - directly relevant given the international customer
+visits the issue itself mentions), and shows a message box instead of
+opening the dialog at all when there are no completed runs yet, rather than
+producing a header-only file silently. File I/O errors (locked file, bad
+path, no permission) are caught, logged through the existing `Log.Error`
+facade, and reported in a message box rather than left to crash the
+station.
+
+**How I verified it.** Five new cases in `RunHistoryCsvExporterTests`: an
+empty run list produces exactly the header line; a normal record formats
+its numbers and ISO-8601 timestamps exactly as expected; a rover name
+containing both a comma and a quote is quoted and escaped correctly; the
+output stays invariant even when the running thread's culture is forced to
+`de-DE`, a comma-decimal locale, which is the direct regression test for the
+issue's own stated concern; and a record with out-of-range
+(`long.MaxValue`) ticks - which `SessionCacheRecord` already clamps to
+`DateTime.MinValue` - formats without throwing, covering "export of an
+absent run" at the data layer. `dotnet test` - 169 of 169 passed, 0 skipped,
+up from 164 by exactly the 5 new cases, nothing existing changed.
+`MSBuild.exe -t:Rebuild -p:Configuration=Debug -p:Platform=x64` came back
+clean. I didn't stop at the unit tests: I wrote a throwaway console harness
+referencing `RoverRally.Core` directly and ran `RunHistoryCsvExporter` against
+the real, shipped `Data/session-cache.bin` (the same 8 real runs #10/#11/#16
+have been verifying against all along), then read the resulting file back -
+correct header, correct RFC 4180 quoting, correct invariant decimal points
+and ISO-8601 timestamps, for real production data rather than hand-built
+fixtures.
+
+I was not able to drive the actual `SaveFileDialog`/message-box UI on screen
+in this environment: the available computer-use tooling can only target
+applications already registered in the Start Menu, and this is an ad-hoc
+local build with no such registration, so it couldn't be brought under that
+tool's control the way #16's UI pass could. The button wiring itself is
+therefore verified by code review and the passing build/tests rather than
+an on-screen click-through - the same category of gap #30 recorded for its
+own UI readout and #31 recorded for its clean-machine check, not a claim
+that this is fully proven end to end. A manual pass - click the button,
+confirm the dialog opens in Documents with a sensible name, open the result
+in actual Excel - is still owed before I'd call this issue completely done.
+
+---
+
 ## Additional Notes
