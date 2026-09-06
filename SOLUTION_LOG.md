@@ -2045,19 +2045,27 @@ attached to it anywhere - so this is the first release-*workflow*, not the
 first tag, and pushing this change doesn't retroactively trigger anything
 against that existing tag.
 
-**What I decided.** Reused #29's job shape verbatim for restore/build/test -
-same `windows-latest` runner, same `actions/setup-dotnet@v4` pinned to
-`8.0.x`, same three commands including `-p:Platform=x64` for the `.sln` -
-rather than inventing a second way to prove a green tree. A failing build or
-test stops the job by default before the publish step ever runs, which is
-what "a red tree cannot produce a release" needs; no second, `needs:`-gated
-job was necessary for that guarantee. The publish step is #31's exact
-command against `RoverRally.App.csproj` directly, not the `.sln` - no
-`-p:Platform=x64`, per CLAUDE.md's note that `PlatformTarget=x64` is already
-unconditioned there - and deliberately keeps its own implicit restore rather
-than reusing `--no-restore`, since a `win-x64` publish needs its own
-runtime-package restore that the solution-level restore step doesn't cover.
-Packaged the whole publish folder into one zip with PowerShell's built-in
+**What I decided.** Two jobs, not one. `build-and-test` reuses #29's job
+shape verbatim - same `windows-latest` runner, same
+`actions/setup-dotnet@v4` pinned to `8.0.x`, same three commands including
+`-p:Platform=x64` for the `.sln` - and carries no elevated permissions at
+all, inheriting the workflow-level `contents: read`. `release` declares
+`needs: build-and-test`, so it never starts unless that job's restore,
+build, and test all succeeded - which is what "a red tree cannot produce a
+release" actually needs, enforced by the job graph rather than by hoping a
+single job's steps happen to stop in the right order. Only `release`
+carries `permissions: contents: write`, scoped to exactly the one job that
+calls `gh release create` - checkout/build/test never run with write access
+to the repository, which is stricter than my first pass at this (one job,
+write permissions on the whole thing) and was Copilot's own review comment
+on the PR, not something I'd considered before it was pointed out. The
+publish step is #31's exact command against `RoverRally.App.csproj`
+directly, not the `.sln` - no `-p:Platform=x64`, per CLAUDE.md's note that
+`PlatformTarget=x64` is already unconditioned there - and deliberately
+keeps its own implicit restore rather than reusing `--no-restore`, since a
+`win-x64` publish needs its own runtime-package restore that the
+solution-level restore step in the other job doesn't cover. Packaged the
+whole publish folder into one zip with PowerShell's built-in
 `Compress-Archive` - no third-party action needed for that - rather than
 attaching the `.exe` and `Data\` as separate loose assets, since a GitHub
 Release can only attach files, not raw folders, and `Data\rovers.json`
@@ -2070,9 +2078,7 @@ third-party marketplace action, matching #29's own stated preference not to
 add a dependency for something the built-in tooling already covers. The
 Release is created as a `--draft` rather than published live, so a
 versioned public artifact gets a human glance before anyone outside this
-repo can see it. `contents: write` is granted at the job level only, not the
-workflow level (which stays `contents: read`), matching the token hardening
-#29 already applied.
+repo can see it.
 
 **How I verified it.** Ran the workflow's own commands locally, in the same
 order and with the same flags: `dotnet restore code/RoverRally.sln`, then
@@ -2100,6 +2106,21 @@ with no Release attached, so reusing it wouldn't exercise anything). That
 was a deliberate choice - pushing a tag creates public, hard-to-fully-undo
 CI state, so I asked before doing it rather than assuming it was fine, and
 it's still pending at the time of writing.
+
+Copilot's review on the pull request caught two real gaps in the first
+version of this workflow, both now fixed. First, the one already folded
+into "What I decided" above: `contents: write` sat on the single job's
+entire step list, not just the release step, which is more write access
+than checkout/build/test ever need - fixed by splitting into the two jobs
+described there. Second, the `gh release create` step used PowerShell
+backtick line continuations without an explicit `shell: pwsh`, which works
+today only because `pwsh` happens to be this workflow's default shell on
+`windows-latest` - a real fragility, since changing the default shell later
+(a repo-wide `defaults.run.shell`, or moving the job to a different runner)
+would silently break that step's syntax with no obvious error pointing back
+here. Both steps that use PowerShell-specific syntax (`Compress-Archive`,
+the backtick-continued `gh release create`) now declare `shell: pwsh`
+explicitly rather than relying on the runner's current default.
 
 ---
 
