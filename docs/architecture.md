@@ -3,7 +3,8 @@
 **Last substantially updated:** June 2020 (ports and framework notes touched up
 2022; telemetry codec, emergency stop latch, per-rover drive state, no-fix
 frame handling, the legacy session cache migration, the roster JSON library
-swap, enabling nullable reference types, and the lap timer 2026)
+swap, enabling nullable reference types, the lap timer, and the Fleet tab's
+CSV export 2026)
 
 ---
 
@@ -138,6 +139,28 @@ report yet.
 `MainWindow` feeds it from the same per-frame, per-rover block that already
 runs the geofence check, and pushes the selected rover's count and last lap
 time into `StationViewModel` the same way it already does for `LinkState`.
+
+---
+
+## Exporting run history to CSV
+
+Added in 2026 (#32). The Fleet tab shows two different things - a live,
+per-frame grid with nothing retained once redrawn, and a completed-run
+history grid backed by the session cache - and the export button is
+deliberately scoped to only the latter, since that's the one dataset that's
+actually retained data rather than a momentary snapshot. The button's
+tooltip says so, so an operator never has to guess which one they're about
+to save.
+
+`Core/Export/RunHistoryCsvExporter` does the formatting and takes a
+rover-name-resolving delegate rather than any view-model dependency, so it
+can be exercised directly by `RoverRally.Tests` the same way the codec and
+`LapTimer` already are. Every number and timestamp goes through
+`CultureInfo.InvariantCulture` explicitly, and rover names are RFC
+4180-quoted, since a station used across international customer visits
+cannot assume a period is always the decimal separator or that a name never
+contains a comma. The file is written UTF-8-with-BOM so Excel does not
+misread a non-ASCII rover name as ANSI.
 
 ---
 

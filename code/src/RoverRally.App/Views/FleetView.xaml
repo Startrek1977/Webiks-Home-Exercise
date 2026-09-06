@@ -43,7 +43,12 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <TextBlock Grid.Row="2" Text="Recent runs" Foreground="#FF8A93A3" Margin="0,14,0,6" FontSize="12" />
+        <DockPanel Grid.Row="2" Margin="0,14,0,6">
+            <Button x:Name="ExportHistoryButton" DockPanel.Dock="Right" Content="Export Run History (CSV)"
+                    Click="ExportHistory_Click"
+                    ToolTip="Exports completed runs from the session-cache history below. Live telemetry above is not included." />
+            <TextBlock Text="Recent runs" Foreground="#FF8A93A3" VerticalAlignment="Center" FontSize="12" />
+        </DockPanel>
 
         <DataGrid Grid.Row="3" x:Name="HistoryGrid" AutoGenerateColumns="False" IsReadOnly="True"
                   Background="#FF23282F" Foreground="#FFE6E9EF" RowBackground="#FF23282F"
