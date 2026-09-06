@@ -12,24 +12,19 @@
 
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
             <TextBlock Text="Search" Foreground="#FF8A93A3" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <TextBox x:Name="SearchBox" Width="200" Height="24" VerticalContentAlignment="Center"
-                     TextChanged="Filter_Changed" />
+            <TextBox Width="200" Height="24" VerticalContentAlignment="Center"
+                     Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}" />
             <TextBlock Text="Status" Foreground="#FF8A93A3" VerticalAlignment="Center" Margin="18,0,8,0" />
-            <ComboBox x:Name="StatusFilter" Width="140" Height="24" SelectionChanged="Filter_Changed">
-                <ComboBoxItem Content="All" IsSelected="True" />
-                <ComboBoxItem Content="Offline" />
-                <ComboBoxItem Content="Idle" />
-                <ComboBoxItem Content="Driving" />
-                <ComboBoxItem Content="Charging" />
-                <ComboBoxItem Content="Stopped" />
-            </ComboBox>
+            <ComboBox Width="140" Height="24" ItemsSource="{Binding StatusFilterOptions}"
+                      SelectedItem="{Binding SelectedStatusFilter}" />
         </StackPanel>
 
-        <DataGrid Grid.Row="1" x:Name="FleetGrid" AutoGenerateColumns="False" IsReadOnly="True"
+        <DataGrid Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True"
                   Background="#FF23282F" Foreground="#FFE6E9EF" RowBackground="#FF23282F"
                   AlternatingRowBackground="#FF262C34" GridLinesVisibility="Horizontal"
                   HorizontalGridLinesBrush="#FF3A414C" BorderThickness="0"
-                  SelectionChanged="FleetGrid_SelectionChanged">
+                  ItemsSource="{Binding RoversView}"
+                  SelectedItem="{Binding SelectedRover, Mode=TwoWay}">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Rover" Binding="{Binding Name}" Width="160" />
                 <DataGridTextColumn Header="Chassis" Binding="{Binding ChassisType}" Width="130" />
@@ -44,16 +39,17 @@
         </DataGrid>
 
         <DockPanel Grid.Row="2" Margin="0,14,0,6">
-            <Button x:Name="ExportHistoryButton" DockPanel.Dock="Right" Content="Export Run History (CSV)"
-                    Click="ExportHistory_Click"
+            <Button DockPanel.Dock="Right" Content="Export Run History (CSV)"
+                    Command="{Binding ExportHistoryCommand}"
                     ToolTip="Exports completed runs from the session-cache history below. Live telemetry above is not included." />
             <TextBlock Text="Recent runs" Foreground="#FF8A93A3" VerticalAlignment="Center" FontSize="12" />
         </DockPanel>
 
-        <DataGrid Grid.Row="3" x:Name="HistoryGrid" AutoGenerateColumns="False" IsReadOnly="True"
+        <DataGrid Grid.Row="3" AutoGenerateColumns="False" IsReadOnly="True"
                   Background="#FF23282F" Foreground="#FFE6E9EF" RowBackground="#FF23282F"
                   AlternatingRowBackground="#FF262C34" GridLinesVisibility="Horizontal"
-                  HorizontalGridLinesBrush="#FF3A414C" BorderThickness="0">
+                  HorizontalGridLinesBrush="#FF3A414C" BorderThickness="0"
+                  ItemsSource="{Binding HistoryRows}">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Rover" Binding="{Binding RoverName}" Width="160" />
                 <DataGridTextColumn Header="Started (UTC)" Binding="{Binding Started}" Width="170" />

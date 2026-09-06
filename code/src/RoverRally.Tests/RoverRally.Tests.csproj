@@ -5,6 +5,13 @@
     <Nullable>enable</Nullable>
     <WarningsAsErrors>Nullable</WarningsAsErrors>
     <IsPackable>false</IsPackable>
+    <!-- Needed as of #73: StationViewModelTests exercises members of App's
+         StationViewModel (e.g. RoversView) that are typed with WPF types
+         (ICollectionView, from PresentationFramework) rather than Core-only
+         ones. The ProjectReference to RoverRally.App alone does not pull
+         PresentationFramework in transitively - this project needs the same
+         UseWPF opt-in App itself uses. -->
+    <UseWPF>true</UseWPF>
     <RootNamespace>RoverRally.Tests</RootNamespace>
     <AssemblyName>RoverRally.Tests</AssemblyName>
     <ProjectGuid>{5C1B8E77-9F04-42A6-B3D1-8A2F6E44C019}</ProjectGuid>
@@ -44,6 +51,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RoverRally.Core\RoverRally.Core.csproj" />
+    <ProjectReference Include="..\RoverRally.App\RoverRally.App.csproj" />
   </ItemGroup>
 
 </Project>
