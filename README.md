@@ -3,7 +3,7 @@
 [![Build and Test](https://github.com/Startrek1977/Webiks-Home-Exercise/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/Startrek1977/Webiks-Home-Exercise/actions/workflows/build-and-test.yml)
 ![.NET 8.0](https://img.shields.io/badge/.NET-8.0-blueviolet)
 ![Windows x64 only](https://img.shields.io/badge/platform-Windows%20x64-blue)
-[![Latest Release](https://img.shields.io/github/release/Startrek1977/Webiks-Home-Exercise?include_prereleases)](https://github.com/Startrek1977/Webiks-Home-Exercise/releases/latest)
+[![Latest Release](https://img.shields.io/badge/release-v2.0-blue)](https://github.com/Startrek1977/Webiks-Home-Exercise/releases/latest)
 
 Ground control station for the rover fleet at Kadima Proving Ground.
 
