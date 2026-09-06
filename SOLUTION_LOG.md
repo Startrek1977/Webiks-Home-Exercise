@@ -1588,57 +1588,35 @@ rather than an error - which reads like a broken test project. It needs
 
 *What's genuinely still open, not what's already landed.*
 
-**Broader test coverage (#25 still open; #23 and #24 landed - see the Tests
-section above).** The suite today is deep exactly where I went looking for
-bugs - the codec, `DriveController`, `Rover`, `GeofenceMonitor` - and
-thinner everywhere I didn't have a specific defect to chase. `TrackView` and
-the WPF code-behind layer in general still have no coverage at all: `RoverRally.Tests` doesn't currently
-reference `RoverRally.App` - both projects target `net8.0-windows` since
-#15, so nothing stops adding that `ProjectReference`, it would just need real
-WPF test setup (an STA thread, a dispatcher) that nothing in this suite has
-needed so far. Worth a real pass rather than only adding tests as a side
-effect of fixing something else.
+**The three on-screen checks I never got to run.** Each is recorded in its
+own section above; I'm collecting them here because together they are the
+real boundary of what this exercise proves. #30's lap timer has unit tests
+on the crossing and direction logic, but I never watched a rover complete a
+lap and saw the count and the elapsed time change on screen against a live
+simulator. #31 publishes a genuine self-contained apphost and I launched it
+with .NET stripped from `PATH`, but this machine has three SDKs installed
+and I could not provision a box with no .NET footprint at all, which is the
+literal claim the issue makes. #32's exporter is tested directly against the
+real shipped `session-cache.bin`, but the button, the `SaveFileDialog` and
+the message box in front of it were verified by reading the code, not by
+clicking them and opening the result in actual Excel. None of the three is a
+suspected defect. They are the places where this log deliberately stops
+short of the word "proven", and I would rather they stay listed than be
+quietly absorbed into a green test run.
 
-**A real documentation audit (#26).** `README.md`, `docs/architecture.md`,
-and `docs/operations-guide.md` all still carry x86/net48 wording in spots
-I deliberately left alone issue by issue - #15's and #16's own commits both
-say so explicitly, pointing the remaining prose cleanup at #26. Each
-individual issue was right not to scope-creep into a full doc pass; the debt
-is real and belongs to its own issue rather than staying scattered as "not
-this issue's job" footnotes. #19 adds a sharper case than the others: it
-moves the file site staff actually edit, `App.config` to `appsettings.json`,
-and `README.md`'s configuration table and `docs/operations-guide.md` still
-point at the old name. That is not a wording nit like the rest of this
-debt - an operator who edits the file the README tells them to, on a station
-that has already picked up #19, is editing a file the station no longer
-reads. I left it alone for the same reason as the others (one issue, one
-job), but it's worth flagging on its own: #26 should treat this one as
-higher-priority than the general net48 wording cleanup.
-
-While checking every doc for App.config references during #19 I also noticed
-`docs/operations-guide.md`'s Logs section tells a marshal to attach
-`C:\ProgramData\RoverRally\station.log` to a fault report - a file that is
-never written. `Log.cs` only writes to `Console`/`Debug`;
-`docs/architecture.md`'s own "Known rough edges" already says as much
-("There is no logging to disk from the application itself"), so the two docs
-disagree with each other and only one of them agrees with the code. Unrelated
-to #19 and not fixed here - it's a `#22` (structured logging) question
-whether the fix is adding the file `docs/operations-guide.md` already
-promises, or correcting the promise - but worth having on record before #22
-or #26 picks it up, so it isn't rediscovered from scratch.
-
-**The registry profile key (worth its own issue - #17, unverified).** While
-working on the migration issues I noticed `StationSettings.ProfileKey` builds
-`HKCU\...\Profile_<hash>` from `Environment.UserName.GetHashCode()`. .NET's
-`string.GetHashCode()` is randomized per process by design (it's a documented
-DoS/hash-flooding mitigation, not a bug), which means that key likely
-computes differently on every launch - silently landing each session in a
-fresh, empty profile instead of the operator's saved one. I have *not*
-verified this against the real station, and I haven't written it up as a bug
-finding elsewhere in this document, because I haven't done the work #17
-actually requires: reproduce it, decide on a stable replacement (a fixed
-per-machine identifier, or hashing with a non-randomized algorithm), and test
-it. Flagging it here as the most concrete lead for whoever picks up #17 next.
+**No coverage of the WPF layer at all.** The suite is 169 tests and deep
+exactly where I went hunting for bugs - the codec, `DriveController`,
+`Rover`, `GeofenceMonitor`, `LapTimer`, the CSV exporter - and entirely
+absent above them. `RoverRally.Tests` references only `RoverRally.Core`, so
+`MainWindow`, `TrackView` and `FleetView` have never been executed by a
+test. Nothing structural blocks fixing that any more: both projects have
+targeted `net8.0-windows` since #15, so the `ProjectReference` would simply
+compile. What it needs is test infrastructure this suite has never required -
+an STA thread and a dispatcher - and a decision about how much of a
+code-behind layer is worth pinning down versus continuing to push logic out
+of it into Core, which is what #20, #35 and #36 each did the moment they
+needed something tested. That deserves to be a deliberate pass rather than
+another side effect of fixing a bug.
 
 **The fleet-wide command question #35 left open.** #35 deliberately answered
 "one vehicle under command" rather than a transmit loop over the whole
@@ -2051,3 +2029,42 @@ in actual Excel - is still owed before I'd call this issue completely done.
 ---
 
 ## Additional Notes
+
+This is the closing entry, written when the tracking epic (#33) was the last
+issue left open on the board.
+
+**Where the solution ended up.** All three projects are SDK-style and target
+`net8.0-windows`, building and running as x64 with no AnyCPU configuration
+left anywhere. The vendor's 32-bit `RoverLink.Telemetry.dll` is gone,
+replaced by a managed codec in `RoverRally.Core.Telemetry` that is checked
+three independent ways - against a mirror of the simulator's writer, against
+golden byte arrays generated by running the real simulator code, and against
+the protocol notes' own worked CRC example. `Newtonsoft.Json` 6.0.8 and its
+advisory are gone, as are AppDomain, .NET Remoting and `BinaryFormatter`.
+Site configuration lives in `appsettings.json`, and logs roll to disk with
+bounded retention. The three bugs Dana reported are fixed with a regression
+test each, and six more that nobody reported are fixed alongside them.
+
+**What is green, and how I know.** `MSBuild -t:Rebuild -p:Configuration=Debug
+-p:Platform=x64` completes with no warnings - a real signal here rather than
+a formality, because #28 made nullable warnings build errors solution-wide,
+so "no warnings" and "it compiles" are the same statement now. `dotnet test`
+reports 169 passed, 0 failed, 0 skipped. The baseline this started from was
+4 tests: 3 passed, 1 skipped. Since #29 that same build and test run on
+`windows-latest` in `Release|x64` on every push to `main` and every pull
+request, so none of this rests on my machine alone.
+
+**What this log does not claim.** The three items under "What I'd Do With
+More Time" above are the honest edge of it - the lap readout on screen, the
+CSV export dialog, and the launch on a machine with no .NET at all were each
+verified as far as this environment allowed and no further. Where I could not
+run a check, I said so in the section belonging to the issue that raised it
+rather than rounding up to "done". The same goes for the review findings I
+filed instead of fixing: each is recorded with its reason, because "I decided
+not to, and here is why" is a different statement from "I didn't notice".
+
+**Time Tracking, at the top of this document, is deliberately still blank.**
+I kept the real per-phase times separately as I went and will fill that table
+in myself before submitting, rather than reconstructing it from commit
+timestamps - those would undercount the reading, reviewing and verifying that
+never becomes a commit.
