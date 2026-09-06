@@ -51,8 +51,11 @@ jobs:
       - name: Package release archive
         shell: pwsh
         run: |
+          $publishDir = "code/src/RoverRally.App/bin/Release/win-x64/publish"
+          Copy-Item -Path "README.md","SOLUTION_LOG.md" -Destination $publishDir
+          Copy-Item -Path "docs" -Destination "$publishDir/docs" -Recurse
           $zipName = "RoverRally.Station-${{ github.ref_name }}-win-x64.zip"
-          Compress-Archive -Path "code/src/RoverRally.App/bin/Release/win-x64/publish/*" -DestinationPath $zipName
+          Compress-Archive -Path "$publishDir/*" -DestinationPath $zipName
 
       - name: Create draft GitHub Release
         shell: pwsh
