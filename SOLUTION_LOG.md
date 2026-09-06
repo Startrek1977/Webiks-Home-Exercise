@@ -8,22 +8,21 @@
 
 | Phase | Start Time | End Time | Duration |
 |---|---|---|---|
-| Getting the existing application built and running | | | |
-| Reading the code / working out what it does | | | |
-| Retargeting to .NET 8 | | | |
-| Moving to 64-bit | | | |
-| The telemetry SDK | | | |
-| Bug fixes | | | |
-| Logging | | | |
-| Tests | | | |
-| Cleanup | | | |
-| Documentation | | | |
-| **Total** | | | |
+| Getting the existing application built and running | 2026-08-31 19:45 | 2026-08-31 22:13 | 2h 27m |
+| Reading the code / working out what it does | 2026-08-31 22:13 | 2026-08-31 23:04 | 0h 51m |
+| Retargeting to .NET 8 | 2026-09-03 18:22 | 2026-09-04 15:56 | 1h 45m |
+| Moving to 64-bit | 2026-09-03 23:59 | 2026-09-04 16:32 | 1h 36m |
+| The telemetry SDK | 2026-09-01 15:54 | 2026-09-01 20:09 | 4h 15m |
+| Bug fixes | 2026-09-02 14:37 | 2026-09-05 16:16 | 9h 09m |
+| Logging | 2026-09-04 20:03 | 2026-09-04 20:46 | 0h 43m |
+| Tests | 2026-09-03 22:58 | 2026-09-05 14:18 | 1h 11m |
+| Cleanup | 2026-09-03 15:27 | 2026-09-04 20:03 | 4h 55m |
+| Documentation | 2026-09-04 16:32 | 2026-09-06 12:47 | 1h 18m |
+| Extra credit / follow-on work (#28-#32, #74) | 2026-09-05 14:40 | 2026-09-06 13:42 | 3h 44m |
+| **Total** | | | **31h 54m** |
 
-*I'm keeping the real start/end times for each phase separately as I go, rather
-than reconstructing them from commit timestamps after the fact - those would
-undercount review/verification time that doesn't show up as a commit. I'll
-fill this table in for real before the exercise is submitted.*
+*This table is a reconstruction, not a live log - see "Time Tracking" under
+Additional Notes at the end of this document for why, and for the method.*
 
 ---
 
@@ -2159,8 +2158,33 @@ rather than rounding up to "done". The same goes for the review findings I
 filed instead of fixing: each is recorded with its reason, because "I decided
 not to, and here is why" is a different statement from "I didn't notice".
 
-**Time Tracking, at the top of this document, is deliberately still blank.**
-I kept the real per-phase times separately as I went and will fill that table
-in myself before submitting, rather than reconstructing it from commit
-timestamps - those would undercount the reading, reviewing and verifying that
-never becomes a commit.
+**Time Tracking, at the top of this document, is a reconstruction, not the
+live log I said I'd keep.** I didn't keep a running per-phase stopwatch as I
+went, so filling it in "for real" at submission time would have meant typing
+in numbers I no longer had. What's there instead is derived from two real,
+timestamped sources rather than guessed:
+
+- `Getting the existing application built and running` and `Reading the code`
+  predate any GitHub issue, so they're bounded by the three commits that
+  received and prepped the repo and the moment I started filing issues
+  (`2026-08-31 23:03`) - the gap between the last setup commit and the first
+  issue is the closest thing to a timestamped "done reading, started
+  planning" marker this history has.
+- Every phase after that is built from each issue's pull request: its
+  `created_at` to `merged_at` window, plus the gap back to the previous PR's
+  `merged_at` when that gap is under 200 minutes, since I work one issue at a
+  time and a short gap after merging one is normally me starting the next,
+  not a break. Eight gaps came out longer than that (all overnight, or a
+  multi-hour stretch between sessions) and are excluded rather than counted
+  as work. `Extra credit / follow-on work` has no row in the original
+  template; I added one rather than folding six real extra-credit issues
+  (#28-#32, #74) into `Cleanup`, which would have hidden real time under the
+  wrong label.
+
+This is still a floor, not the real total, for exactly the reason I originally
+gave for not reconstructing it this way: neither a commit timestamp nor a PR
+timestamp sees the reading, false starts, or verification that never produced
+one. The Start/End columns are more trustworthy than Duration for that reason
+- a Duration understates real effort most on the issues that were quick to
+implement but took real thought to get right (the geofence and no-fix-frame
+bugs among them).
