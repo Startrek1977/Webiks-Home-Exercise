@@ -54,6 +54,7 @@ namespace RoverRally.App
             services.AddSingleton<IStationService, StationService>();
             services.AddSingleton<IDriveControllerRegistry, DriveControllerRegistry>();
             services.AddSingleton<IDialogService, DialogService>();
+            services.AddSingleton<IDispatcherService, DispatcherService>();
             services.AddSingleton<StationViewModel>();
             services.AddSingleton<MainWindow>();
         }

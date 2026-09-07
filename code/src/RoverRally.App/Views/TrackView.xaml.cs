@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -65,6 +66,12 @@ namespace RoverRally.App.Views
         private readonly Dictionary<byte, TextBlock> _labels = new Dictionary<byte, TextBlock>();
         private readonly Dictionary<byte, Polyline> _trails = new Dictionary<byte, Polyline>();
 
+        /// <summary>
+        /// Every rover currently subscribed to, keyed by id so a Reset (which
+        /// carries no OldItems to unsubscribe from) can still find them.
+        /// </summary>
+        private readonly Dictionary<byte, Rover> _subscribedRovers = new Dictionary<byte, Rover>();
+
         private TrackProjection? _projection;
 
         public TrackView()
@@ -125,34 +132,87 @@ namespace RoverRally.App.Views
             if (e.OldValue is ObservableCollection<Rover> oldRovers)
             {
                 oldRovers.CollectionChanged -= view.Rovers_CollectionChanged;
-                foreach (Rover rover in oldRovers) rover.PropertyChanged -= view.Rover_PropertyChanged;
+                foreach (Rover rover in oldRovers) view.Unsubscribe(rover);
             }
 
             if (e.NewValue is ObservableCollection<Rover> newRovers)
             {
                 newRovers.CollectionChanged += view.Rovers_CollectionChanged;
-                foreach (Rover rover in newRovers)
-                {
-                    rover.PropertyChanged += view.Rover_PropertyChanged;
-                    view.Redraw(rover);
-                }
+                foreach (Rover rover in newRovers) view.Subscribe(rover);
             }
         }
 
         private void Rovers_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
+            // Reset (e.g. Rovers.Clear()) carries no OldItems - everything
+            // currently tracked has to be found via _subscribedRovers
+            // instead. ToList() snapshots it first since Unsubscribe removes
+            // from the same dictionary as it goes.
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                foreach (Rover rover in _subscribedRovers.Values.ToList()) Unsubscribe(rover);
+                return;
+            }
+
             if (e.OldItems != null)
             {
-                foreach (Rover rover in e.OldItems) rover.PropertyChanged -= Rover_PropertyChanged;
+                foreach (Rover rover in e.OldItems) Unsubscribe(rover);
             }
 
             if (e.NewItems != null)
             {
-                foreach (Rover rover in e.NewItems)
-                {
-                    rover.PropertyChanged += Rover_PropertyChanged;
-                    Redraw(rover);
-                }
+                foreach (Rover rover in e.NewItems) Subscribe(rover);
+            }
+        }
+
+        private void Subscribe(Rover rover)
+        {
+            rover.PropertyChanged += Rover_PropertyChanged;
+            _subscribedRovers[rover.Id] = rover;
+            Redraw(rover);
+        }
+
+        /// <summary>
+        /// Undoes Subscribe: stops listening to this rover and removes every
+        /// visual it owns, so a removed or reset rover doesn't leave a stale
+        /// marker/trail/label on screen or keep this control alive in its
+        /// PropertyChanged invocation list.
+        /// </summary>
+        private void Unsubscribe(Rover rover)
+        {
+            rover.PropertyChanged -= Rover_PropertyChanged;
+            _subscribedRovers.Remove(rover.Id);
+            RemoveVisuals(rover.Id);
+        }
+
+        private void RemoveVisuals(byte roverId)
+        {
+            Ellipse? marker;
+            if (_markers.TryGetValue(roverId, out marker))
+            {
+                RoverLayer.Children.Remove(marker);
+                _markers.Remove(roverId);
+            }
+
+            Line? heading;
+            if (_headings.TryGetValue(roverId, out heading))
+            {
+                RoverLayer.Children.Remove(heading);
+                _headings.Remove(roverId);
+            }
+
+            TextBlock? label;
+            if (_labels.TryGetValue(roverId, out label))
+            {
+                RoverLayer.Children.Remove(label);
+                _labels.Remove(roverId);
+            }
+
+            Polyline? trail;
+            if (_trails.TryGetValue(roverId, out trail))
+            {
+                TrailLayer.Children.Remove(trail);
+                _trails.Remove(roverId);
             }
         }
 

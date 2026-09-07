@@ -3,6 +3,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoverRally.App.ViewModels;
 using RoverRally.Core.Control;
 using RoverRally.Core.Models;
+using RoverRally.Core.Telemetry;
 using RoverRally.Core.Units;
 using RoverRally.Tests.TestSupport;
 
@@ -22,6 +23,7 @@ namespace RoverRally.Tests
     {
         private FakeStationService _service = null!;
         private FakeDialogService _dialogs = null!;
+        private FakeDispatcherService _dispatcher = null!;
         private DriveControllerRegistry _driveControllers = null!;
         private StationViewModel _vm = null!;
 
@@ -30,8 +32,9 @@ namespace RoverRally.Tests
         {
             _service = new FakeStationService();
             _dialogs = new FakeDialogService();
+            _dispatcher = new FakeDispatcherService();
             _driveControllers = new DriveControllerRegistry();
-            _vm = new StationViewModel(_service, _driveControllers, _dialogs);
+            _vm = new StationViewModel(_service, _driveControllers, _dialogs, _dispatcher);
         }
 
         [TestMethod]
@@ -118,6 +121,58 @@ namespace RoverRally.Tests
 
             Assert.IsTrue(Contains(_vm.RoversView, "Sandstorm"));
             Assert.IsFalse(Contains(_vm.RoversView, "Falafel"));
+        }
+
+        /// <summary>
+        /// The code-behind this replaced trimmed SearchBox.Text before
+        /// matching (Copilot review on #78) - FilterText itself keeps
+        /// whatever the operator typed, but matching must still ignore
+        /// surrounding whitespace the same way.
+        /// </summary>
+        [TestMethod]
+        public void FilterTextWithSurroundingWhitespaceStillMatches()
+        {
+            _vm.Rovers.Add(new Rover { Id = 1, Name = "Sandstorm" });
+
+            _vm.FilterText = "  sand  ";
+
+            Assert.IsTrue(Contains(_vm.RoversView, "Sandstorm"));
+        }
+
+        /// <summary>
+        /// Copilot review on #78: Application.Current.Dispatcher is null
+        /// outside a running WPF application (including under a test
+        /// runner), which would throw the moment this handler ran in a
+        /// test - exactly what #73 exists to make reachable. FakeDispatcherService
+        /// runs the action inline, and the handlers are wired in the
+        /// constructor (not StartLink, which needs a configured
+        /// StationSettings this test never sets up), so raising the fake's
+        /// event exercises the real handler with no window and no StartLink call.
+        /// </summary>
+        [TestMethod]
+        public void ConnectionStateChangedUpdatesLinkStateWithoutThrowing()
+        {
+            _service.RaiseConnectionStateChanged();
+
+            Assert.AreEqual("Listening", _vm.LinkState);
+        }
+
+        [TestMethod]
+        public void FrameReceivedAppliesTheFrameToTheMatchingRoverWithoutThrowing()
+        {
+            Rover rover = new Rover { Id = 7, Name = "Mishmish" };
+            _vm.Rovers.Add(rover);
+
+            TelemetryFrame frame = new TelemetryFrame(
+                roverId: 7, sequence: 1, timestampMs: 0,
+                latitudeE7: 0, longitudeE7: 0,
+                headingDeci: 900, speedCmS: 250, batteryMilliVolts: 12000,
+                signalPercent: 80, motorTempDeciC: 200, tiltDeciDeg: 0,
+                statusFlags: 0);
+
+            _service.RaiseFrameReceived(frame);
+
+            Assert.AreEqual(250, rover.SpeedCmS);
         }
 
         [TestMethod]

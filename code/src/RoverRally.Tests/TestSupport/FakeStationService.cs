@@ -28,11 +28,9 @@ namespace RoverRally.Tests.TestSupport
         public int StartCallCount { get; private set; }
         public int StopCallCount { get; private set; }
 
-#pragma warning disable CS0067 // never raised by this fake; tests that need them can add raise-helpers later
         public event EventHandler<TelemetryReceivedEventArgs>? FrameReceived;
         public event EventHandler? ConnectionStateChanged;
         public event EventHandler? DriveTimerTick;
-#pragma warning restore CS0067
 
         public void Initialize(GeofenceMonitor geofence, LapTimerRegistry lapTimers)
         {
@@ -48,6 +46,25 @@ namespace RoverRally.Tests.TestSupport
         public void Stop()
         {
             StopCallCount++;
+        }
+
+        /// <summary>
+        /// Lets a test simulate a decoded frame arriving on the (real, in
+        /// production) listener thread, the same way StationService does.
+        /// </summary>
+        public void RaiseFrameReceived(TelemetryFrame frame)
+        {
+            FrameReceived?.Invoke(this, new TelemetryReceivedEventArgs(frame));
+        }
+
+        public void RaiseConnectionStateChanged()
+        {
+            ConnectionStateChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void RaiseDriveTimerTick()
+        {
+            DriveTimerTick?.Invoke(this, EventArgs.Empty);
         }
     }
 }

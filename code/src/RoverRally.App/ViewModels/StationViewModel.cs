@@ -53,11 +53,13 @@ namespace RoverRally.App.ViewModels
         private readonly IStationService _service;
         private readonly IDriveControllerRegistry _driveControllers;
         private readonly IDialogService _dialogService;
+        private readonly IDispatcherService _dispatcher;
 
         private readonly HashSet<byte> _fencedAlerted = new HashSet<byte>();
         private readonly ICollectionView _roversView;
         private IList<SessionCacheRecord> _historyRecords = Array.Empty<SessionCacheRecord>();
         private int _frameCount;
+        private bool _linkStarted;
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(HasSelection))]
@@ -108,11 +110,13 @@ namespace RoverRally.App.ViewModels
         private string _logLevelDisplay = string.Empty;
         private string _stationDisplay = string.Empty;
 
-        public StationViewModel(IStationService service, IDriveControllerRegistry driveControllers, IDialogService dialogService)
+        public StationViewModel(IStationService service, IDriveControllerRegistry driveControllers,
+                                IDialogService dialogService, IDispatcherService dispatcher)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _driveControllers = driveControllers ?? throw new ArgumentNullException(nameof(driveControllers));
             _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
+            _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 
             Rovers = new ObservableCollection<Rover>();
             HistoryRows = new ObservableCollection<HistoryRowViewModel>();
@@ -120,6 +124,16 @@ namespace RoverRally.App.ViewModels
 
             _roversView = CollectionViewSource.GetDefaultView(Rovers);
             _roversView.Filter = FilterRover;
+
+            // Subscribed here, not in StartLink(), so a duplicate Loaded
+            // firing (Window.Loaded can fire more than once in WPF) can
+            // never double-subscribe these - a constructor runs exactly
+            // once per instance. StartLink()'s own _linkStarted guard only
+            // has to protect IStationService.Start() itself from running
+            // twice.
+            _service.FrameReceived += Telemetry_FrameReceived;
+            _service.ConnectionStateChanged += Telemetry_ConnectionStateChanged;
+            _service.DriveTimerTick += DriveTimer_Tick;
         }
 
         public ObservableCollection<Rover> Rovers { get; }
@@ -384,9 +398,14 @@ namespace RoverRally.App.ViewModels
 
         private void StartLink()
         {
-            _service.FrameReceived += Telemetry_FrameReceived;
-            _service.ConnectionStateChanged += Telemetry_ConnectionStateChanged;
-            _service.DriveTimerTick += DriveTimer_Tick;
+            // Window.Loaded (and so LoadedCommand) can fire more than once in
+            // WPF - e.g. if the shell is ever removed and re-added to the
+            // visual tree. Event subscriptions live in the constructor (runs
+            // exactly once) so they can't double up; this guard is what
+            // stops a second call from leaking the first IStationService.Start()
+            // call's TelemetryClient/CommandSender/DispatcherTimer.
+            if (_linkStarted) return;
+            _linkStarted = true;
 
             LinkState = "Listening";
 
@@ -395,16 +414,16 @@ namespace RoverRally.App.ViewModels
 
         private void Telemetry_ConnectionStateChanged(object? sender, EventArgs e)
         {
-            Application.Current.Dispatcher.BeginInvoke(new Action(delegate
+            _dispatcher.Invoke(delegate
             {
                 LinkState = _service.TelemetryClient.IsReconnecting ? "Reconnecting" : "Listening";
-            }));
+            });
         }
 
         private void Telemetry_FrameReceived(object? sender, TelemetryReceivedEventArgs e)
         {
             DateTime receivedUtc = e.ReceivedUtc;
-            Application.Current.Dispatcher.BeginInvoke(new Action(delegate { ApplyFrame(e.Frame, receivedUtc); }));
+            _dispatcher.Invoke(delegate { ApplyFrame(e.Frame, receivedUtc); });
         }
 
         private void ApplyFrame(TelemetryFrame frame, DateTime receivedUtc)
@@ -595,12 +614,16 @@ namespace RoverRally.App.ViewModels
 
             if (SelectedStatusFilter != "All" && rover.Status.ToString() != SelectedStatusFilter) return false;
 
-            if (FilterText.Length > 0)
+            // Trimmed for matching only, same as the code-behind's SearchBox.Text.Trim()
+            // this replaced - FilterText itself keeps whatever the operator typed,
+            // including surrounding whitespace, since it's bound straight to the textbox.
+            string search = FilterText.Trim();
+            if (search.Length > 0)
             {
                 bool matchesName = rover.Name != null &&
-                                   rover.Name.IndexOf(FilterText, StringComparison.OrdinalIgnoreCase) >= 0;
+                                   rover.Name.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0;
                 bool matchesChassis = rover.ChassisType != null &&
-                                      rover.ChassisType.IndexOf(FilterText, StringComparison.OrdinalIgnoreCase) >= 0;
+                                      rover.ChassisType.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0;
                 if (!matchesName && !matchesChassis) return false;
             }
 
