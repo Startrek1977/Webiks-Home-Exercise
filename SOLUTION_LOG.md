@@ -253,6 +253,31 @@ whether or not `$(Platform)` is set). Same review also caught a stale
 comment on the `NU1903` suppression still saying "this format conversion",
 left over from #12's wording, which I updated to name this issue instead.
 
+**Addendum (#81).** Debug's `DebugType` moved again after this, `full` →
+`portable`, in all three projects - found as an uncommitted, undocumented
+working-tree diff with no PR or review behind it, so #81 is the paper trail
+that was missing. Not a regression of the bug above: the conditioning fix
+this section describes is untouched, all three still key their Debug/Release
+`PropertyGroup`s on `$(Configuration)` alone, so `portable` evaluates the
+same way from the `.sln` and standalone that `full` did.
+
+My first pass at this addendum claimed `portable` would unify the Debug PDB
+*format* with Release's `pdbonly`. I did not verify that before writing it
+down, and it was wrong: I inspected the actual built `.pdb` files' header
+bytes rather than trusting the docs from memory, and `pdbonly` produces a
+classic Windows PDB (`Microsoft C/C++ MSF 7.00` signature), not the portable
+format (`BSJB` signature) `portable`/`embedded` produce - `full` and
+`pdbonly` only ever differed in Edit-and-Continue support, never in file
+format. So keeping `portable` on Debug alone while leaving `pdbonly` on
+Release would have left Debug and Release on two genuinely different PDB
+formats, the opposite of what I'd claimed. Moved Release to `portable` too
+so the claim is actually true: both configurations now emit the same
+cross-platform portable-format PDB, verified the same way (header bytes,
+not memory). The only real cost of `portable` over `full`/`pdbonly` is
+Edit-and-Continue support in Visual Studio, which only matters for Debug -
+Release was never used for live debugging, so moving it off `pdbonly`
+loses nothing Release actually used `pdbonly` for.
+
 ### Moving to 64-bit
 
 *What did 64-bit break that .NET 8 on its own did not? How did you find it?*
