@@ -164,7 +164,23 @@ namespace RoverRally.Core.Control
         public StationCommand NextDriveCommand(byte roverId, bool isEmergencyStopped, DateTime lastFrameUtc, DateTime nowUtc,
                                                short throttle, short steering)
         {
-            if (!_emergencyStopLatched && ShouldAdoptAVehicleReportedStop(roverId, isEmergencyStopped, lastFrameUtc, nowUtc))
+            // #79: on this controller's very first tick ever (_lastCommandRoverId
+            // still null - see the class remarks on #35, one instance per rover
+            // for life), a rover that has never actually reported
+            // (lastFrameUtc == DateTime.MinValue) is silent by IsSilent's
+            // definition, but the #40 same-rover freshness exemption can't
+            // apply yet - there is no prior tick to compare against - so this
+            // would otherwise fall straight through to ShouldAdoptAVehicleReportedStop's
+            // "if (silent) return true" and latch a stop from pure absence of
+            // data, before the drive timer and the first telemetry frame have
+            // even had a chance to race. A real stale timestamp on first
+            // contact (the vehicle reported before, is now genuinely silent)
+            // is not exempted here and still latches, exactly as before -
+            // this only covers "nothing has ever been heard from this rover."
+            bool neverReportedYet = lastFrameUtc == DateTime.MinValue && _lastCommandRoverId == null;
+
+            if (!_emergencyStopLatched && !neverReportedYet &&
+                ShouldAdoptAVehicleReportedStop(roverId, isEmergencyStopped, lastFrameUtc, nowUtc))
             {
                 _emergencyStopLatched = true;
                 _armed = false;

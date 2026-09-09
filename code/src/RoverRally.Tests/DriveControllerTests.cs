@@ -517,6 +517,94 @@ namespace RoverRally.Tests
             Assert.IsFalse(stillHeld.Armed);
         }
 
+        /// <summary>
+        /// #79: the issue's own reproduction against the real DriveController.
+        /// A rover that has never sent a single telemetry frame yet -
+        /// lastFrameUtc still DateTime.MinValue, exactly what Rover.LastFrameUtc
+        /// defaults to before ApplyFrame is ever called - must not be treated
+        /// as reporting a stop just because there is no data at all. That is
+        /// the drive timer's very first tick racing ahead of the selected
+        /// rover's first telemetry frame; erring toward a stop is not itself
+        /// dangerous, but it is a stop nobody asked for and only an explicit
+        /// re-arm could previously clear.
+        /// </summary>
+        [TestMethod]
+        public void DoesNotLatchAStopOnTheFirstTickBeforeTheSelectedRoverHasEverReported()
+        {
+            DriveController controller = new DriveController();
+
+            StationCommand command = controller.NextDriveCommand(FalafelId, false, DateTime.MinValue, Now, 0, 0);
+
+            Assert.IsFalse(command.EmergencyStop, "A rover with no data at all was commanded to stop.");
+            Assert.IsFalse(command.Armed);
+            Assert.IsFalse(controller.IsEmergencyStopLatched,
+                           "The absence of any telemetry was treated as a reported stop.");
+        }
+
+        /// <summary>
+        /// The #40 same-rover freshness gate already covers every tick after
+        /// the first correctly (a silence already accounted for is not new
+        /// evidence) - this pins down that the #79 guard only has to cover
+        /// the one genuinely special tick, not every tick before telemetry
+        /// arrives.
+        /// </summary>
+        [TestMethod]
+        public void StaysClearAcrossManyTicksBeforeTheSelectedRoverEverReports()
+        {
+            DriveController controller = new DriveController();
+
+            for (int tick = 1; tick <= 10; tick++)
+            {
+                StationCommand command = controller.NextDriveCommand(FalafelId, false, DateTime.MinValue, Now, 0, 0);
+
+                Assert.IsFalse(command.EmergencyStop, "Tick " + tick + " latched a stop before any telemetry arrived.");
+                Assert.IsFalse(controller.IsEmergencyStopLatched, "Tick " + tick + " left the latch engaged.");
+            }
+        }
+
+        /// <summary>
+        /// The #79 fix is scoped to "genuinely never reported," not "any
+        /// silence on the first tick." A rover that reported for real at some
+        /// point and has since gone silent long enough to cross the
+        /// command-loss window must still latch a protective stop on this
+        /// controller's first contact with it, exactly as before - an unknown
+        /// vehicle still cannot confirm it is clear.
+        /// </summary>
+        [TestMethod]
+        public void StillLatchesOnFirstContactWhenTheStaleTimestampIsReal()
+        {
+            DateTime staleFrame = Now - TimeSpan.FromSeconds(5);
+
+            DriveController controller = new DriveController();
+
+            StationCommand command = controller.NextDriveCommand(FalafelId, false, staleFrame, Now, FullThrottle, 0);
+
+            Assert.IsTrue(command.EmergencyStop, "A real, stale timestamp on first contact was not treated as a stop.");
+            Assert.IsTrue(controller.IsEmergencyStopLatched);
+        }
+
+        /// <summary>
+        /// The other half: the #79 guard must not make the controller deaf to
+        /// a genuine stop that shows up right after a never-reported first
+        /// tick - once real telemetry confirms the rover is actually stopped,
+        /// that is new information and must still latch.
+        /// </summary>
+        [TestMethod]
+        public void StillAdoptsAGenuineStopReportedRightAfterANeverReportedFirstTick()
+        {
+            DriveController controller = new DriveController();
+
+            StationCommand firstTick = controller.NextDriveCommand(FalafelId, false, DateTime.MinValue, Now, 0, 0);
+            Assert.IsFalse(firstTick.EmergencyStop, "Setup: the first tick should not have latched anything.");
+
+            DateTime confirmingFrame = Now.AddMilliseconds(200);
+            StationCommand secondTick = controller.NextDriveCommand(
+                FalafelId, true, confirmingFrame, confirmingFrame, FullThrottle, FullThrottle);
+
+            Assert.IsTrue(secondTick.EmergencyStop, "A genuine stop reported right after the first tick was ignored.");
+            Assert.IsTrue(controller.IsEmergencyStopLatched);
+        }
+
         private static DriveController ArmedController()
         {
             DriveController controller = new DriveController();
