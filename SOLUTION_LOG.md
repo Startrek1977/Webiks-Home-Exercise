@@ -253,6 +253,42 @@ whether or not `$(Platform)` is set). Same review also caught a stale
 comment on the `NU1903` suppression still saying "this format conversion",
 left over from #12's wording, which I updated to name this issue instead.
 
+**Addendum (#81).** Debug's `DebugType` moved again after this, `full` →
+`portable`, in all three projects - found as an uncommitted, undocumented
+working-tree diff with no PR or review behind it, so #81 is the paper trail
+that was missing. Not a regression of the bug above: the conditioning fix
+this section describes is untouched, all three still key their Debug/Release
+`PropertyGroup`s on `$(Configuration)` alone, so `portable` evaluates the
+same way from the `.sln` and standalone that `full` did.
+
+My first pass at this addendum claimed `portable` would unify the Debug PDB
+*format* with Release's `pdbonly`. I did not verify that before writing it
+down, and it was wrong: I inspected the actual built `.pdb` files' header
+bytes rather than trusting the docs from memory, and on Windows `pdbonly`
+produces a classic Windows PDB (`Microsoft C/C++ MSF 7.00` signature), not
+the portable format (`BSJB` signature) `portable`/`embedded` produce. So
+keeping `portable` on Debug alone while leaving `pdbonly` on Release would
+have left the two configurations on genuinely different PDB formats, the
+opposite of what I'd claimed. Moved Release to `portable` too so the claim
+is actually true: both configurations now emit the same cross-platform
+portable-format PDB, verified the same way (header bytes, not memory).
+
+I also wrote, in that same first pass, that `full` and `pdbonly` "only ever
+differed in Edit-and-Continue support" and that this was the one real cost
+of moving to `portable`. I did not verify that claim either, and this time
+I checked before letting it stand a second time: Microsoft's own C#
+compiler-options reference says plainly that `pdbonly` and `full` produce
+the identical Windows PDB on Windows, and that "for all compiler versions
+starting with C# 6.0, there is no difference between pdbonly and full" -
+this project is on C# 12. Whatever debugger-attach distinction the two
+values once had is documented as obsolete, and I found nothing in current
+Microsoft documentation suggesting `portable` costs Visual Studio anything
+`full`/`pdbonly` still provides. So there is no known tradeoff here at
+all: `portable` is simply the SDK's own current default for `DebugType` on
+both configurations, and this change adopts that default explicitly on
+Release rather than leaving it pinned to a legacy value that, on this
+platform, was never anything other than an alias for `full`.
+
 ### Moving to 64-bit
 
 *What did 64-bit break that .NET 8 on its own did not? How did you find it?*
