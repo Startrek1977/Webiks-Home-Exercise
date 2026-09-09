@@ -1603,7 +1603,7 @@ suspected defect. They are the places where this log deliberately stops
 short of the word "proven", and I would rather they stay listed than be
 quietly absorbed into a green test run.
 
-**No coverage of the WPF layer at all.** The suite is 169 tests and deep
+~~**No coverage of the WPF layer at all.** The suite is 169 tests and deep
 exactly where I went hunting for bugs - the codec, `DriveController`,
 `Rover`, `GeofenceMonitor`, `LapTimer`, the CSV exporter - and entirely
 absent above them. `RoverRally.Tests` references only `RoverRally.Core`, so
@@ -1615,7 +1615,16 @@ an STA thread and a dispatcher - and a decision about how much of a
 code-behind layer is worth pinning down versus continuing to push logic out
 of it into Core, which is what #20, #35 and #36 each did the moment they
 needed something tested. That deserves to be a deliberate pass rather than
-another side effect of fixing a bug.
+another side effect of fixing a bug.~~
+
+**Landed in #73** - marked "extremely optional" in the issue I raised for
+exactly this gap, and I did it anyway once I actually sat down with it. It
+turned out to need neither an STA thread nor a dispatcher in the end: the
+whole point of pushing the command layer into a constructor-injected
+`StationViewModel` is that a test can construct one directly and call its
+commands on the test's own thread, the same way any other object under test
+works - no window, no message pump. See "Finishing the MVVM pattern so the
+WPF layer becomes testable" under Extra Credit below.
 
 **The fleet-wide command question #35 left open.** #35 deliberately answered
 "one vehicle under command" rather than a transmit loop over the whole
@@ -2120,6 +2129,120 @@ would silently break that step's syntax with no obvious error pointing back
 here. Both steps that use PowerShell-specific syntax (`Compress-Archive`,
 the backtick-continued `gh release create`) now declare `shell: pwsh`
 explicitly rather than relying on the runner's current default.
+
+---
+
+### Finishing the MVVM pattern so the WPF layer becomes testable (#73)
+
+*Extremely optional, by the issue's own words - recorded so the reasoning
+isn't lost, not because it was expected.*
+
+**What I found.** The gap was exactly what I'd already written down under
+"What I'd Do With More Time": `StationViewModel` was a read-model only, not
+one `ICommand` implementation existed anywhere in `RoverRally.App`, and
+every behaviour entry point - ARM, EMERGENCY STOP, the speed-unit radio
+buttons, the fleet filter, the CSV export - was a `Click`/`Checked`/
+`TextChanged` handler in code-behind, unreachable from
+`RoverRally.Tests` for the structural reason I'd already named: it had no
+`ProjectReference` to `RoverRally.App` at all. `MainWindow.xaml.cs` was 461
+lines against the view model's 110, and directly owned `TelemetryClient`,
+`CommandSender`, the drive `DispatcherTimer`, `GeofenceMonitor`,
+`DriveControllerRegistry`, and `LapTimerRegistry`.
+
+**What I decided.** I went through this in three passes inside the same
+issue, each one a real correction from the previous, not a smooth plan
+executed in order - worth recording honestly rather than tidying into
+"decided X, did X."
+
+*Pass one* added a `Services/IStationService` (the four link-layer fields
+above, previously on `MainWindow`) that the view model took by constructor
+injection, plus hand-wired `RelayCommand`s from `CommunityToolkit.Mvvm` for
+arm/e-stop/speed-unit - but left `MainWindow.xaml.cs`'s `Click` handlers in
+place, calling through to the new commands, so the app stayed green
+mid-refactor. I reported this as done.
+
+*Pass two* was a direct correction: View and ViewModel must not reference
+each other at all, and View code-behind must be completely empty - not
+"thin," empty. That's structurally more than "add commands to the existing
+view model" - it meant a composition root, and a way for a `Window` to get
+its content without either side naming the other's type. I chose
+`Microsoft.Extensions.DependencyInjection` for the container and a
+`DataTemplate` (registered in `App.xaml` against `StationViewModel`'s type)
+for the View/ViewModel association, over the alternatives I raised and had
+confirmed before touching code: a `ViewModelLocator` resource, or the
+composition root setting `DataContext` directly on a View it already
+constructed. The `DataTemplate` is the one that makes the "don't know about
+each other" property actually load-bearing rather than aspirational -
+`MainWindow.xaml.cs` never constructs or even names `StationViewModel`, and
+neither does the new `StationView` (which absorbed the old `MainWindow.xaml`'s
+actual content) name it back. `TrackView` was the one deliberate exception
+I asked about rather than assumed: canvas drawing is inherently imperative
+in WPF, so it stayed a reactive custom control - `TrackNorth/South/West/East`,
+`Geofence`, `Rovers` as Dependency Properties, redrawing itself from bound
+rovers' own `PropertyChanged` - rather than gaining a view model with
+nothing to do but shuttle values to a canvas. `Views/MapMetrics.cs` (new)
+holds the one thing both `StationViewModel` and `TrackView` still needed to
+agree on - the canvas's pixel geometry, for the start-line projection - as
+a small neutral file neither references the other to reach.
+
+*Pass three* came from a direct question, not a request for more scope: why
+didn't `StationViewModel` inherit from `CommunityToolkit.Mvvm`'s own
+`ObservableObject`, given it already depended on the toolkit for
+`RelayCommand`? There was no good answer - it was an inconsistency, not a
+choice. I checked the `dotnet-wpf-modern` skill's own reference material
+before touching anything, since the two CommunityToolkit property syntaxes
+(C# 12 annotated-field vs. C# 13 partial-property) are not interchangeable
+and this project floats to C# 12 on `net8.0-windows` with `LangVersion`
+left unpinned since #15 - picking the wrong one either doesn't compile or
+doesn't generate. `StationViewModel` became `partial class StationViewModel
+: ObservableObject`, and I asked one more question before converting
+anything: several properties are `private set` today specifically because
+only the view model should ever write them, and the C# 12 syntax can only
+generate public setters. Rather than accept that as a blanket trade-off,
+I split the properties by their *existing* `set`/`private set` today -
+public ones became `[ObservableProperty]`-annotated fields, private ones
+stayed hand-written but shrank to a single inherited `SetProperty(ref
+field, value)` call - preserving the exact encapsulation that was already
+there. All six commands became `[RelayCommand]`-attributed methods; the
+generated command *property* names match the ones they replace exactly, so
+nothing downstream - XAML or tests - needed to change.
+
+Writing the actual tests (the whole point of the issue) caught something
+none of the three passes above had: `ExecuteEmergencyStopCommand` and
+`ExecuteExportHistoryCommand` called `MessageBox.Show`/`SaveFileDialog`
+directly. A real Windows modal dialog blocks until a human clicks it -
+which means a test that called either command's success path would not
+fail, it would *hang*, indefinitely, taking the whole test run down with
+it. I caught this before it shipped a hung CI run, not after: extracted
+`Services/IDialogService` and gave `StationViewModel` a third
+constructor-injected dependency, letting a test supply a fake that answers
+immediately. It's exactly the "manager, taken by constructor injection of
+its contract" shape the issue itself asked for, so fixing it didn't expand
+scope - it completed the pattern the issue was already asking for, one
+dependency I'd missed the first time through.
+
+**How I verified it.** `dotnet build` on the full solution - 0 warnings, 0
+errors - after every one of the three passes, not just at the end; each
+pass had to leave the app green before I moved to the next, per the
+project's own rule. `dotnet test` - 178 of 178 passed (169 pre-existing
+plus 9 new `StationViewModelTests`), with **zero changes needed to the test
+file** across the base-class/generator conversion in pass three - the
+generated property and command names are identical to the hand-written
+ones they replaced, which is the whole reason that conversion was safe to
+do after the tests already existed rather than before. `RoverRally.Tests.csproj`
+needed one new thing beyond the `ProjectReference` the issue itself
+predicted: `<UseWPF>true</UseWPF>`, since `StationViewModel.RoversView` is
+typed `ICollectionView` (from `PresentationFramework`), which a bare
+`ProjectReference` to `RoverRally.App` doesn't pull in transitively - I
+found this the same way I find most build-config gaps in this repo, by
+letting the compiler tell me rather than guessing.
+
+Then the real station against the real simulator, run after each of the
+three passes: roster loaded, session history loaded, telemetry listener
+started, frames decoding and driving the Track tab, ARM/EMERGENCY STOP
+working through the DI-resolved, DataTemplate-rendered, zero-code-behind
+UI exactly as they did before any of this started - which is the actual
+point of the issue. It was never about changing what the station does.
 
 ---
 

@@ -1,5 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -9,20 +13,20 @@ using RoverRally.Core.Models;
 
 namespace RoverRally.App.Views
 {
+    /// <summary>
+    /// Draws the track, the geofence, and every rover's marker/trail/heading
+    /// on a fixed-size canvas. Reacts to its bound properties rather than
+    /// being driven imperatively (#73): the view model sets
+    /// <see cref="TrackNorth"/>/<see cref="TrackSouth"/>/<see cref="TrackWest"/>/
+    /// <see cref="TrackEast"/>, <see cref="Geofence"/> and <see cref="Rovers"/>
+    /// once via binding, and this control redraws itself whenever a bound
+    /// rover's own <see cref="Rover.Position"/>/<see cref="Rover.Heading"/>
+    /// changes - the same reactive shape a chart control uses for
+    /// ItemsSource, so no code-behind logic is needed anywhere upstream.
+    /// </summary>
     public partial class TrackView : UserControl
     {
         private const int TrailLength = 300;
-        private const double CanvasWidth = 720;
-        private const double CanvasHeight = 480;
-
-        // Must match the "Start / finish" Rectangle in TrackView.xaml
-        // (Canvas.Left="298" Canvas.Top="103" Width="4" Height="34") - these
-        // describe the same drawn line as a vertical segment through its
-        // centre, for code that needs the line's real-world position rather
-        // than just its pixels.
-        public const double StartLineX = 300;
-        public const double StartLineTopY = 103;
-        public const double StartLineBottomY = 137;
 
         private static readonly Color[] RoverColours =
         {
@@ -33,10 +37,40 @@ namespace RoverRally.App.Views
             Color.FromRgb(0xB1, 0x8A, 0xE0)
         };
 
+        public static readonly DependencyProperty TrackNorthProperty =
+            DependencyProperty.Register(nameof(TrackNorth), typeof(double), typeof(TrackView),
+                new PropertyMetadata(0.0, OnBoundsChanged));
+
+        public static readonly DependencyProperty TrackSouthProperty =
+            DependencyProperty.Register(nameof(TrackSouth), typeof(double), typeof(TrackView),
+                new PropertyMetadata(0.0, OnBoundsChanged));
+
+        public static readonly DependencyProperty TrackWestProperty =
+            DependencyProperty.Register(nameof(TrackWest), typeof(double), typeof(TrackView),
+                new PropertyMetadata(0.0, OnBoundsChanged));
+
+        public static readonly DependencyProperty TrackEastProperty =
+            DependencyProperty.Register(nameof(TrackEast), typeof(double), typeof(TrackView),
+                new PropertyMetadata(0.0, OnBoundsChanged));
+
+        public static readonly DependencyProperty GeofenceProperty =
+            DependencyProperty.Register(nameof(Geofence), typeof(TrackPoint[]), typeof(TrackView),
+                new PropertyMetadata(null, OnGeofenceChanged));
+
+        public static readonly DependencyProperty RoversProperty =
+            DependencyProperty.Register(nameof(Rovers), typeof(ObservableCollection<Rover>), typeof(TrackView),
+                new PropertyMetadata(null, OnRoversChanged));
+
         private readonly Dictionary<byte, Ellipse> _markers = new Dictionary<byte, Ellipse>();
         private readonly Dictionary<byte, Line> _headings = new Dictionary<byte, Line>();
         private readonly Dictionary<byte, TextBlock> _labels = new Dictionary<byte, TextBlock>();
         private readonly Dictionary<byte, Polyline> _trails = new Dictionary<byte, Polyline>();
+
+        /// <summary>
+        /// Every rover currently subscribed to, keyed by id so a Reset (which
+        /// carries no OldItems to unsubscribe from) can still find them.
+        /// </summary>
+        private readonly Dictionary<byte, Rover> _subscribedRovers = new Dictionary<byte, Rover>();
 
         private TrackProjection? _projection;
 
@@ -45,32 +79,170 @@ namespace RoverRally.App.Views
             InitializeComponent();
         }
 
-        public void Configure(double north, double south, double west, double east)
+        public double TrackNorth
         {
-            _projection = new TrackProjection(north, south, west, east, CanvasWidth, CanvasHeight);
+            get => (double)GetValue(TrackNorthProperty);
+            set => SetValue(TrackNorthProperty, value);
+        }
+
+        public double TrackSouth
+        {
+            get => (double)GetValue(TrackSouthProperty);
+            set => SetValue(TrackSouthProperty, value);
+        }
+
+        public double TrackWest
+        {
+            get => (double)GetValue(TrackWestProperty);
+            set => SetValue(TrackWestProperty, value);
+        }
+
+        public double TrackEast
+        {
+            get => (double)GetValue(TrackEastProperty);
+            set => SetValue(TrackEastProperty, value);
+        }
+
+        public TrackPoint[]? Geofence
+        {
+            get => (TrackPoint[]?)GetValue(GeofenceProperty);
+            set => SetValue(GeofenceProperty, value);
+        }
+
+        public ObservableCollection<Rover>? Rovers
+        {
+            get => (ObservableCollection<Rover>?)GetValue(RoversProperty);
+            set => SetValue(RoversProperty, value);
+        }
+
+        private static void OnBoundsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((TrackView)d).RebuildProjection();
+        }
+
+        private static void OnGeofenceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((TrackView)d).RedrawGeofence();
+        }
+
+        private static void OnRoversChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            TrackView view = (TrackView)d;
+
+            if (e.OldValue is ObservableCollection<Rover> oldRovers)
+            {
+                oldRovers.CollectionChanged -= view.Rovers_CollectionChanged;
+                foreach (Rover rover in oldRovers) view.Unsubscribe(rover);
+            }
+
+            if (e.NewValue is ObservableCollection<Rover> newRovers)
+            {
+                newRovers.CollectionChanged += view.Rovers_CollectionChanged;
+                foreach (Rover rover in newRovers) view.Subscribe(rover);
+            }
+        }
+
+        private void Rovers_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            // Reset (e.g. Rovers.Clear()) carries no OldItems - everything
+            // currently tracked has to be found via _subscribedRovers
+            // instead. ToList() snapshots it first since Unsubscribe removes
+            // from the same dictionary as it goes.
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                foreach (Rover rover in _subscribedRovers.Values.ToList()) Unsubscribe(rover);
+                return;
+            }
+
+            if (e.OldItems != null)
+            {
+                foreach (Rover rover in e.OldItems) Unsubscribe(rover);
+            }
+
+            if (e.NewItems != null)
+            {
+                foreach (Rover rover in e.NewItems) Subscribe(rover);
+            }
+        }
+
+        private void Subscribe(Rover rover)
+        {
+            rover.PropertyChanged += Rover_PropertyChanged;
+            _subscribedRovers[rover.Id] = rover;
+            Redraw(rover);
         }
 
         /// <summary>
-        /// The real-world position that would project onto pixel (x, y) of
-        /// this view's canvas, using the bounds passed to <see cref="Configure"/>.
+        /// Undoes Subscribe: stops listening to this rover and removes every
+        /// visual it owns, so a removed or reset rover doesn't leave a stale
+        /// marker/trail/label on screen or keep this control alive in its
+        /// PropertyChanged invocation list.
         /// </summary>
-        public TrackPoint Unproject(double x, double y)
+        private void Unsubscribe(Rover rover)
         {
-            if (_projection == null)
-            {
-                throw new InvalidOperationException("TrackView.Configure must be called before Unproject.");
-            }
-
-            return _projection.Unproject(x, y);
+            rover.PropertyChanged -= Rover_PropertyChanged;
+            _subscribedRovers.Remove(rover.Id);
+            RemoveVisuals(rover.Id);
         }
 
-        public void SetGeofence(TrackPoint[] fence)
+        private void RemoveVisuals(byte roverId)
         {
-            if (_projection == null) return;
+            Ellipse? marker;
+            if (_markers.TryGetValue(roverId, out marker))
+            {
+                RoverLayer.Children.Remove(marker);
+                _markers.Remove(roverId);
+            }
+
+            Line? heading;
+            if (_headings.TryGetValue(roverId, out heading))
+            {
+                RoverLayer.Children.Remove(heading);
+                _headings.Remove(roverId);
+            }
+
+            TextBlock? label;
+            if (_labels.TryGetValue(roverId, out label))
+            {
+                RoverLayer.Children.Remove(label);
+                _labels.Remove(roverId);
+            }
+
+            Polyline? trail;
+            if (_trails.TryGetValue(roverId, out trail))
+            {
+                TrailLayer.Children.Remove(trail);
+                _trails.Remove(roverId);
+            }
+        }
+
+        private void Rover_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(Rover.Position) || e.PropertyName == nameof(Rover.Heading))
+            {
+                Redraw((Rover)sender!);
+            }
+        }
+
+        private void RebuildProjection()
+        {
+            _projection = new TrackProjection(TrackNorth, TrackSouth, TrackWest, TrackEast,
+                                              MapMetrics.CanvasWidth, MapMetrics.CanvasHeight);
+            RedrawGeofence();
+
+            if (Rovers != null)
+            {
+                foreach (Rover rover in Rovers) Redraw(rover);
+            }
+        }
+
+        private void RedrawGeofence()
+        {
+            if (_projection == null || Geofence == null) return;
 
             PointCollection points = new PointCollection();
 
-            foreach (TrackPoint corner in fence)
+            foreach (TrackPoint corner in Geofence)
             {
                 double x, y;
                 _projection.TryProject(corner, out x, out y);
@@ -80,7 +252,7 @@ namespace RoverRally.App.Views
             GeofencePolygon.Points = points;
         }
 
-        public void UpdateRover(Rover rover)
+        private void Redraw(Rover rover)
         {
             if (_projection == null) return;
 
@@ -113,14 +285,6 @@ namespace RoverRally.App.Views
             heading.Y1 = y;
             heading.X2 = x + System.Math.Cos(radians) * 16;
             heading.Y2 = y + System.Math.Sin(radians) * 16;
-        }
-
-        public void ClearTrails()
-        {
-            foreach (Polyline trail in _trails.Values)
-            {
-                trail.Points.Clear();
-            }
         }
 
         private Ellipse GetMarker(Rover rover)

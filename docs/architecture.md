@@ -3,8 +3,8 @@
 **Last substantially updated:** June 2020 (ports and framework notes touched up
 2022; telemetry codec, emergency stop latch, per-rover drive state, no-fix
 frame handling, the legacy session cache migration, the roster JSON library
-swap, enabling nullable reference types, the lap timer, and the Fleet tab's
-CSV export 2026)
+swap, enabling nullable reference types, the lap timer, the Fleet tab's
+CSV export, and finishing the MVVM pattern for testability 2026)
 
 ---
 
@@ -30,9 +30,13 @@ Nobody has owned it full time since 2021.
 | `RoverRally.Tests` | MSTest project. Thin — it was started and not kept up. |
 | `RoverRally.Simulator` | Bench simulator. Written later and on its own, so it is already on modern .NET and is not part of the station solution. |
 
-All of the business logic lives in `RoverRally.Core`. The views are meant to be
-presentation only, so that the logic can be exercised without a window open. This
-is an aspiration the window has not always met — see the rough edges below.
+All of the *domain* logic (the codec, drive-control state, geometry, unit
+conversion, session cache) lives in `RoverRally.Core`. `RoverRally.App`'s
+views are meant to be presentation only, with app-level orchestration
+(loading the roster, wiring the telemetry link, the commands behind ARM/
+EMERGENCY STOP) living in `StationViewModel` instead — reachable from a test
+without a window open, as of #73 (see the rough edges below), even though
+that orchestration code itself lives in `App`, not `Core`.
 
 ---
 
@@ -136,9 +140,11 @@ only starts the clock rather than completing a lap — a rover's position when
 the station starts listening is arbitrary, so there is no genuine prior lap to
 report yet.
 
-`MainWindow` feeds it from the same per-frame, per-rover block that already
-runs the geofence check, and pushes the selected rover's count and last lap
-time into `StationViewModel` the same way it already does for `LinkState`.
+~~`MainWindow` feeds it...~~ **As of #73,** `StationViewModel` itself feeds
+it from the same per-frame, per-rover block that already runs the geofence
+check, setting its own `LapCount`/`LastLapDisplay` properties the same way
+it already does for `LinkState` — there is no separate window to push the
+values into anymore.
 
 ---
 
@@ -168,10 +174,25 @@ misread a non-ASCII rover name as ANSI.
 
 - Configuration is spread across the config file and the registry, and it is not
   obvious from the code which value comes from where.
-- The window does more than a window should. Pulling the drive logic out had
-  been on the list since 2020; the armed and emergency-stop state came out in
-  #20 and now lives in `Core/Control/DriveController`, one instance per
-  vehicle since #35 via `Core/Control/DriveControllerRegistry`, which is what
-  made it testable. Applying a decoded frame's fields to the rover model came
-  out in #36 the same way, into `Core/Models/Rover.ApplyFrame`. Geofence
-  alerting and the link lifecycle are still in the code-behind.
+- ~~The window does more than a window should... Geofence alerting and the
+  link lifecycle are still in the code-behind.~~ **Fixed in #73**, marked
+  "extremely optional" in the issue that raised it but completed anyway at
+  the owner's direction. `MainWindow.xaml.cs` (and every other View's
+  code-behind — `StationView`, `FleetView`, `SettingsView`) is now
+  `InitializeComponent()` and nothing else. Everything that used to live
+  there — geofence alerting, the telemetry/drive-timer event handlers, the
+  arm/e-stop/speed-unit/export commands, fleet filtering — moved into
+  `StationViewModel`, which takes its collaborators
+  (`Services/IStationService`, `Core/Control/IDriveControllerRegistry`,
+  `Services/IDialogService`) by constructor injection, wired by a
+  `Microsoft.Extensions.DependencyInjection` composition root in
+  `App.xaml.cs`. The View and the ViewModel do not reference each other at
+  all — `MainWindow` resolves its content purely through a `DataTemplate`
+  registered against `StationViewModel`'s type. The one deliberate
+  exception is `TrackView`: canvas drawing is inherently imperative in WPF,
+  so it stayed a reactive custom control (Dependency Properties, redrawing
+  itself from bound rovers' own `PropertyChanged`) rather than gaining a
+  view model of its own. `RoverRally.Tests` now references `RoverRally.App`
+  and `StationViewModelTests` exercises the whole command layer directly,
+  with no window, no simulator, and no STA thread needed — see CLAUDE.md's
+  "Finishing the MVVM pattern for testability (#73)" for the full shape.

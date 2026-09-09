@@ -10,7 +10,7 @@ namespace RoverRally.Core.Control
     /// selected, which meant stopping one vehicle could latch or unlatch a
     /// different one depending on what was selected when (#37).
     /// </summary>
-    public class DriveControllerRegistry
+    public class DriveControllerRegistry : IDriveControllerRegistry
     {
         private readonly Dictionary<byte, DriveController> _controllers = new Dictionary<byte, DriveController>();
 
