@@ -94,12 +94,19 @@ two seconds without a command frame.
 **Selecting a vehicle never lifts a stop it is already holding.** If you select
 a vehicle from the Fleet tab and it is already reporting a stop - because it was
 stopped earlier and left alone, because the station was just restarted, or
-because it has not reported at all in the last two seconds - the station holds
-that stop exactly as if you had pressed the button yourself. `STATION: STOP
-LATCHED` appears without you having touched anything, and the ARM button is what
-clears it, same as any other stop: centre the throttle and press ARM. A vehicle
-that has never reported is treated the same way, since the station cannot tell
-"clear" apart from "not answering."
+because it has gone silent for more than two seconds after having reported
+before - the station holds that stop exactly as if you had pressed the button
+yourself. `STATION: STOP LATCHED` appears without you having touched anything,
+and the ARM button is what clears it, same as any other stop: centre the
+throttle and press ARM.
+
+A vehicle you have *never once heard from* - freshly launched the station,
+haven't seen its first frame yet - is different: `VEHICLE: NO DATA` shows, but
+the station does not invent a stop for it. The drive timer still sends a
+command frame every tick as usual, the same as for any other vehicle - it just
+does not carry an emergency stop, since there is nothing yet to hold one
+against. The instant the vehicle reports anything - stopped or not - the
+station reacts to what it actually says, the same as any other vehicle.
 
 ---
 

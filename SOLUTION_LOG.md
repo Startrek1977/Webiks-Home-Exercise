@@ -912,6 +912,60 @@ This landed on net48 and needed no retargeting, which is why it went first.
    scope for this issue and the acceptance criteria assume it stays - but it's a
    decision worth the owner making deliberately rather than by default.
 
+7. **A rover could come up spuriously emergency-stopped before its first
+   telemetry frame ever arrived (#79).** Not something Dana flagged - I found
+   it running the real station against the real simulator after #73, when the
+   default-selected rover (Falafel) came up on a fresh launch showing
+   `STATION: STOP LATCHED - VEHICLE: STOPPED`, with nobody having touched
+   EMERGENCY STOP and the other four rovers driving normally. `StartLink()`
+   starts the telemetry listener and the 200ms drive timer back-to-back with
+   no synchronization between them, and the timer's first tick can fire on the
+   UI dispatcher queue before the selected rover's first frame is decoded and
+   applied - a genuine race, not deterministic, which is exactly why nothing
+   had caught it before.
+
+   `DriveControllerRegistry` (#35) hands each rover its own `DriveController`
+   for its whole lifetime, so `_lastCommandRoverId` starting `null` reliably
+   means "this controller's very first tick, ever." `IsSilent` treats
+   `lastFrameUtc == DateTime.MinValue` - genuinely never reported - identically
+   to a real vehicle gone silent mid-drive, and on that very first tick the
+   `#40` same-rover freshness exemption can't apply yet (there is nothing to
+   compare against), so `ShouldAdoptAVehicleReportedStop` fell straight
+   through to its silence branch and latched a stop from pure absence of
+   data. `NextDriveCommand` has no path that ever un-latches a stop it
+   invented this way, unlike `TryToggleArm`, which already handles a
+   never-reported rover gracefully because an explicit re-arm immediately
+   clears whatever it just adopted.
+
+   I reproduced it directly against `DriveController` first - the issue's own
+   three-line repro, a fresh controller ticked once with
+   `lastFrameUtc: DateTime.MinValue` - before fixing it. The fix is a single
+   guard in `NextDriveCommand`: skip the auto-adopt only when this is the
+   controller's first-ever tick *and* the rover has genuinely never reported,
+   as opposed to a real stale timestamp, which must still latch on first
+   contact exactly as before - an unknown vehicle still cannot confirm it is
+   clear. `TryToggleArm` and the shared `ShouldAdoptAVehicleReportedStop` are
+   untouched; I hand-traced all 20 pre-existing `DriveControllerTests` against
+   the change to confirm it, including the one test that already covers
+   `TryToggleArm`'s own never-reported handling, which stays green because the
+   guard never touches `TryToggleArm`'s code path at all.
+
+   Four new tests cover it: the issue's own repro as a direct regression,
+   several ticks in a row before any telemetry ever arrives (the existing
+   same-rover freshness gate already covers every tick after the first
+   correctly, so this pins down that the new guard only needs to cover the one
+   special tick), a real stale timestamp still latching on first contact
+   unchanged, and a genuine stop reported right after a never-reported first
+   tick still being adopted. Verified against the full suite (185 of 185
+   passing, nothing skipped) and a clean `Rebuild` in `Debug|x64`, then
+   launched the real station against the real simulator several times in a
+   row - no spurious `STOP LATCHED` and no warning in the log across any of
+   them. That's a best-effort spot-check for a non-deterministic race, not a
+   proof; the tests are what actually pin the fix down.
+   `docs/operations-guide.md` previously documented the bug as intended
+   behaviour ("a vehicle that has never reported is treated the same way" as
+   an already-latched stop) and needed correcting alongside the code.
+
 ---
 
 ## What You Removed
