@@ -102,10 +102,11 @@ throttle and press ARM.
 
 A vehicle you have *never once heard from* - freshly launched the station,
 haven't seen its first frame yet - is different: `VEHICLE: NO DATA` shows, but
-the station does not invent a stop for it. There is nothing to hold a stop
-against yet, and a stop is itself a command, so none is sent until the vehicle
-actually reports something. The instant it reports anything - stopped or not
-- the station reacts to what it actually says, the same as any other vehicle.
+the station does not invent a stop for it. The drive timer still sends a
+command frame every tick as usual, the same as for any other vehicle - it just
+does not carry an emergency stop, since there is nothing yet to hold one
+against. The instant the vehicle reports anything - stopped or not - the
+station reacts to what it actually says, the same as any other vehicle.
 
 ---
 
