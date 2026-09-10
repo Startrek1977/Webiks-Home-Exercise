@@ -4,7 +4,8 @@
 2022; telemetry codec, emergency stop latch, per-rover drive state, no-fix
 frame handling, the legacy session cache migration, the roster JSON library
 swap, enabling nullable reference types, the lap timer, the Fleet tab's
-CSV export, and finishing the MVVM pattern for testability 2026)
+CSV export, finishing the MVVM pattern for testability, and the Track tab
+trail-continuity fix 2026)
 
 ---
 
@@ -196,3 +197,12 @@ misread a non-ASCII rover name as ANSI.
   and `StationViewModelTests` exercises the whole command layer directly,
   with no window, no simulator, and no STA thread needed — see CLAUDE.md's
   "Finishing the MVVM pattern for testability (#73)" for the full shape.
+- **Fixed in #80.** The Track tab's breadcrumb trail was one long-lived
+  `Polyline` per rover, so a gap in reporting — most commonly a rover
+  driving off the surveyed track extent and back — drew a straight line
+  bridging the pre-gap and post-gap positions instead of showing the gap
+  at all. `Views/RoverTrail.cs` (new) tracks the trail as a sequence of
+  point segments and starts a new one whenever a fix was skipped, so
+  `TrackView` now renders each segment as its own `Polyline` and the gap
+  shows as a visible break. See CLAUDE.md's "Trail continuity across a
+  rover gap (#80)" for the full mechanism.

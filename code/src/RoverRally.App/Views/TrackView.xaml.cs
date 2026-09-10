@@ -64,7 +64,8 @@ namespace RoverRally.App.Views
         private readonly Dictionary<byte, Ellipse> _markers = new Dictionary<byte, Ellipse>();
         private readonly Dictionary<byte, Line> _headings = new Dictionary<byte, Line>();
         private readonly Dictionary<byte, TextBlock> _labels = new Dictionary<byte, TextBlock>();
-        private readonly Dictionary<byte, Polyline> _trails = new Dictionary<byte, Polyline>();
+        private readonly Dictionary<byte, RoverTrail> _trailModels = new Dictionary<byte, RoverTrail>();
+        private readonly Dictionary<byte, List<Polyline>> _trailVisuals = new Dictionary<byte, List<Polyline>>();
 
         /// <summary>
         /// Every rover currently subscribed to, keyed by id so a Reset (which
@@ -208,12 +209,8 @@ namespace RoverRally.App.Views
                 _labels.Remove(roverId);
             }
 
-            Polyline? trail;
-            if (_trails.TryGetValue(roverId, out trail))
-            {
-                TrailLayer.Children.Remove(trail);
-                _trails.Remove(roverId);
-            }
+            RemoveTrailVisuals(roverId);
+            _trailModels.Remove(roverId);
         }
 
         private void Rover_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -261,15 +258,18 @@ namespace RoverRally.App.Views
 
             // A rover that has driven off the surveyed area still reports, but
             // there is nowhere sensible to put the marker - or the trail.
-            if (!onTrack) return;
-
-            Polyline trail = GetTrail(rover);
-            trail.Points.Add(new Point(x, y));
-
-            while (trail.Points.Count > TrailLength)
+            // Record the gap so the next on-track fix starts a new trail
+            // segment instead of a straight line silently bridging the
+            // excursion (#80).
+            if (!onTrack)
             {
-                trail.Points.RemoveAt(0);
+                GetTrailModel(rover).RecordGap();
+                return;
             }
+
+            RoverTrail trailModel = GetTrailModel(rover);
+            trailModel.AddPoint(x, y);
+            SyncTrailVisuals(rover, trailModel);
 
             Ellipse marker = GetMarker(rover);
             Canvas.SetLeft(marker, x - marker.Width / 2);
@@ -319,19 +319,57 @@ namespace RoverRally.App.Views
             return marker;
         }
 
-        private Polyline GetTrail(Rover rover)
+        private RoverTrail GetTrailModel(Rover rover)
         {
-            Polyline? trail;
-            if (_trails.TryGetValue(rover.Id, out trail)) return trail;
+            RoverTrail? trailModel;
+            if (_trailModels.TryGetValue(rover.Id, out trailModel)) return trailModel;
 
-            trail = new Polyline();
-            trail.Stroke = new SolidColorBrush(RoverColours[rover.Id % RoverColours.Length]);
-            trail.StrokeThickness = 1.6;
-            trail.Opacity = 0.65;
-            _trails[rover.Id] = trail;
-            TrailLayer.Children.Add(trail);
+            trailModel = new RoverTrail(TrailLength);
+            _trailModels[rover.Id] = trailModel;
 
-            return trail;
+            return trailModel;
+        }
+
+        /// <summary>
+        /// Rebuilds this rover's trail Polylines from its RoverTrail model -
+        /// one Polyline per segment, so a gap (#80) shows as a visible break
+        /// on the map instead of a straight line across it. Rebuilding from
+        /// scratch each call keeps this in lockstep with the model without
+        /// having to diff segment boundaries by hand; at a few hundred
+        /// points and a handful of segments per rover, the cost is
+        /// negligible against the 5 Hz telemetry rate driving it.
+        /// </summary>
+        private void SyncTrailVisuals(Rover rover, RoverTrail trailModel)
+        {
+            RemoveTrailVisuals(rover.Id);
+
+            List<Polyline> visuals = new List<Polyline>();
+
+            foreach (IReadOnlyList<Point> segment in trailModel.Segments)
+            {
+                Polyline polyline = new Polyline();
+                polyline.Stroke = new SolidColorBrush(RoverColours[rover.Id % RoverColours.Length]);
+                polyline.StrokeThickness = 1.6;
+                polyline.Opacity = 0.65;
+                polyline.Points = new PointCollection(segment);
+                TrailLayer.Children.Add(polyline);
+                visuals.Add(polyline);
+            }
+
+            _trailVisuals[rover.Id] = visuals;
+        }
+
+        private void RemoveTrailVisuals(byte roverId)
+        {
+            List<Polyline>? visuals;
+            if (!_trailVisuals.TryGetValue(roverId, out visuals)) return;
+
+            foreach (Polyline polyline in visuals)
+            {
+                TrailLayer.Children.Remove(polyline);
+            }
+
+            _trailVisuals.Remove(roverId);
         }
     }
 }
