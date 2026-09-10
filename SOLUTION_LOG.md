@@ -932,7 +932,7 @@ This landed on net48 and needed no retargeting, which is why it went first.
    `#40` same-rover freshness exemption can't apply yet (there is nothing to
    compare against), so `ShouldAdoptAVehicleReportedStop` fell straight
    through to its silence branch and latched a stop from pure absence of
-   data. `NextDriveCommand` has no path that ever un-latches a stop it
+   data. `NextInstruction` has no path that ever un-latches a stop it
    invented this way, unlike `TryToggleArm`, which already handles a
    never-reported rover gracefully because an explicit re-arm immediately
    clears whatever it just adopted.
@@ -940,7 +940,7 @@ This landed on net48 and needed no retargeting, which is why it went first.
    I reproduced it directly against `DriveController` first - the issue's own
    three-line repro, a fresh controller ticked once with
    `lastFrameUtc: DateTime.MinValue` - before fixing it. The fix is a single
-   guard in `NextDriveCommand`: skip the auto-adopt only when this is the
+   guard in `NextInstruction`: skip the auto-adopt only when this is the
    controller's first-ever tick *and* the rover has genuinely never reported,
    as opposed to a real stale timestamp, which must still latch on first
    contact exactly as before - an unknown vehicle still cannot confirm it is

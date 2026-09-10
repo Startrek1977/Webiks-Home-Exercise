@@ -474,7 +474,7 @@ namespace RoverRally.App.ViewModels
             DriveController drive = _driveControllers.For(rover.Id);
             bool wasLatched = drive.IsEmergencyStopLatched;
 
-            StationCommand command = drive.NextDriveCommand(rover.Id, rover.IsEmergencyStopped, rover.LastFrameUtc,
+            StationCommand command = drive.NextInstruction(rover.Id, rover.IsEmergencyStopped, rover.LastFrameUtc,
                                                              DateTime.UtcNow,
                                                              (short)ThrottleValue,
                                                              (short)SteeringValue);
