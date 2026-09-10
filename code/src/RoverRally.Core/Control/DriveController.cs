@@ -14,7 +14,7 @@ namespace RoverRally.Core.Control
     /// operations guide nevertheless promises the operator a stop that latches
     /// until re-armed. The only way to present latching behaviour with a
     /// level-triggered vehicle is for the transmitter to keep asserting it,
-    /// which is what NextDriveCommand does on every tick.
+    /// which is what NextInstruction does on every tick.
     ///
     /// Invariant: a latched stop implies not armed. That is what keeps the
     /// station's own idea of being armed identical to what it is transmitting,
@@ -25,7 +25,7 @@ namespace RoverRally.Core.Control
     /// uses to get the right instance back on every selection change, rather
     /// than sharing a single controller across the fleet the way #20 and #37
     /// did. Selecting a vehicle whose own telemetry reports a stop this
-    /// latch does not know about still adopts it (see NextDriveCommand and
+    /// latch does not know about still adopts it (see NextInstruction and
     /// TryToggleArm) rather than transmitting the false-clear that used to
     /// reach it - that guard stays as defense in depth even though, with one
     /// controller per rover, every call to a given instance now addresses the
@@ -161,7 +161,7 @@ namespace RoverRally.Core.Control
         /// stays a pure function of its inputs and testable without a real
         /// clock.
         /// </summary>
-        public StationCommand NextDriveCommand(byte roverId, bool isEmergencyStopped, DateTime lastFrameUtc, DateTime nowUtc,
+        public StationCommand NextInstruction(byte roverId, bool isEmergencyStopped, DateTime lastFrameUtc, DateTime nowUtc,
                                                short throttle, short steering)
         {
             // #79: on this controller's very first tick ever (_lastCommandRoverId
