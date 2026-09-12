@@ -1,0 +1,90 @@
+<UserControl x:Class="RoverRally.App.Views.TrackTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:RoverRally.App.Views">
+    <Grid Margin="8">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="300" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="{StaticResource TrackSurface}" CornerRadius="4">
+            <views:TrackView TrackNorth="{Binding TrackNorth}" TrackSouth="{Binding TrackSouth}"
+                             TrackWest="{Binding TrackWest}" TrackEast="{Binding TrackEast}"
+                             Geofence="{Binding Geofence}" Rovers="{Binding Rovers}" />
+        </Border>
+
+        <Border Grid.Column="1" Margin="8,0,0,0" Padding="14" CornerRadius="4" Background="#FF23282F">
+            <StackPanel>
+                <TextBlock Text="{Binding SelectedRover.Name, FallbackValue='No rover selected'}"
+                           Foreground="{StaticResource PanelForeground}" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding SelectedRover.ChassisType}" Foreground="#FF8A93A3" FontSize="12" />
+
+                <TextBlock Text="BATTERY" Style="{StaticResource StatLabel}" />
+                <Grid>
+                    <ProgressBar Height="18" Minimum="0" Maximum="100"
+                                 Value="{Binding SelectedRover.BatteryPercent, Mode=OneWay}"
+                                 Foreground="{StaticResource AccentBrush}" Background="#FF161A20" BorderThickness="0" />
+                    <TextBlock HorizontalAlignment="Center" Foreground="{StaticResource PanelForeground}" FontSize="11"
+                               Text="{Binding SelectedRover.BatteryPercent, StringFormat='{}{0}%'}" />
+                </Grid>
+                <TextBlock Foreground="#FF6E7787" FontSize="10"
+                           Text="{Binding SelectedRover.BatteryMilliVolts, StringFormat='{}{0} mV'}" />
+
+                <TextBlock Text="SPEED" Style="{StaticResource StatLabel}" />
+                <TextBlock Style="{StaticResource StatValue}" Text="{Binding SelectedSpeedDisplay}" />
+
+                <TextBlock Text="HEADING" Style="{StaticResource StatLabel}" />
+                <TextBlock Style="{StaticResource StatValue}"
+                           Text="{Binding SelectedRover.Heading, StringFormat='{}{0:0} deg'}" />
+
+                <TextBlock Text="SIGNAL" Style="{StaticResource StatLabel}" />
+                <TextBlock Style="{StaticResource StatValue}"
+                           Text="{Binding SelectedRover.SignalPercent, StringFormat='{}{0}%'}" />
+
+                <TextBlock Text="MOTOR TEMPERATURE" Style="{StaticResource StatLabel}" />
+                <TextBlock Style="{StaticResource StatValue}"
+                           Text="{Binding SelectedRover.MotorTemperatureC, StringFormat='{}{0:0.0} C'}" />
+
+                <TextBlock Text="TILT" Style="{StaticResource StatLabel}" />
+                <TextBlock Style="{StaticResource StatValue}"
+                           Text="{Binding SelectedRover.TiltDegrees, StringFormat='{}{0:0.0} deg'}" />
+
+                <TextBlock Text="LAP COUNT" Style="{StaticResource StatLabel}" />
+                <TextBlock Style="{StaticResource StatValue}" Text="{Binding LapCount}" />
+
+                <TextBlock Text="LAST LAP TIME" Style="{StaticResource StatLabel}" />
+                <TextBlock Style="{StaticResource StatValue}" Text="{Binding LastLapDisplay}" />
+
+                <Separator Margin="0,14" Background="#FF3A414C" />
+
+                <TextBlock Text="THROTTLE" Style="{StaticResource StatLabel}" />
+                <Slider Minimum="-1000" Maximum="1000" Value="{Binding ThrottleValue}"
+                        TickFrequency="250" IsSnapToTickEnabled="False" />
+
+                <TextBlock Text="STEERING" Style="{StaticResource StatLabel}" />
+                <Slider Minimum="-1000" Maximum="1000" Value="{Binding SteeringValue}"
+                        TickFrequency="250" IsSnapToTickEnabled="False" />
+
+                <Button Content="{Binding ArmButtonText}" Style="{StaticResource ActionButton}"
+                        Command="{Binding ArmCommand}" Margin="0,12,0,0" />
+                <Button Content="EMERGENCY STOP"
+                        Style="{StaticResource ActionButton}" Command="{Binding EmergencyStopCommand}"
+                        Background="{StaticResource DangerBrush}" Foreground="White" FontWeight="Bold" Height="46" />
+                <TextBlock Margin="0,6,0,0" FontSize="10"
+                           TextWrapping="Wrap" Text="{Binding DriveStateText}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{StaticResource QuietStateBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DriveStateIsLatched}" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
