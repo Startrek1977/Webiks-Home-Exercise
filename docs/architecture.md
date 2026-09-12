@@ -4,8 +4,9 @@
 2022; telemetry codec, emergency stop latch, per-rover drive state, no-fix
 frame handling, the legacy session cache migration, the roster JSON library
 swap, enabling nullable reference types, the lap timer, the Fleet tab's
-CSV export, finishing the MVVM pattern for testability, and the Track tab
-trail-continuity fix 2026)
+CSV export, finishing the MVVM pattern for testability, the Track tab
+trail-continuity fix, and splitting the view model into per-tab view models
+2026)
 
 ---
 
@@ -35,9 +36,12 @@ All of the *domain* logic (the codec, drive-control state, geometry, unit
 conversion, session cache) lives in `RoverRally.Core`. `RoverRally.App`'s
 views are meant to be presentation only, with app-level orchestration
 (loading the roster, wiring the telemetry link, the commands behind ARM/
-EMERGENCY STOP) living in `StationViewModel` instead — reachable from a test
-without a window open, as of #73 (see the rough edges below), even though
-that orchestration code itself lives in `App`, not `Core`.
+EMERGENCY STOP) living in view models instead — reachable from a test
+without a window open, as of #73 — even though that orchestration code
+itself lives in `App`, not `Core`. As of #88, that's no longer one single
+view model: `TrackViewModel`/`FleetViewModel`/`SettingsViewModel` each own
+their own tab, and `StationViewModel` is a thin composition root over them
+(see the rough edges below).
 
 ---
 
@@ -141,11 +145,12 @@ only starts the clock rather than completing a lap — a rover's position when
 the station starts listening is arbitrary, so there is no genuine prior lap to
 report yet.
 
-~~`MainWindow` feeds it...~~ **As of #73,** `StationViewModel` itself feeds
-it from the same per-frame, per-rover block that already runs the geofence
-check, setting its own `LapCount`/`LastLapDisplay` properties the same way
-it already does for `LinkState` — there is no separate window to push the
-values into anymore.
+~~`MainWindow` feeds it...~~ ~~As of #73, `StationViewModel` itself feeds it
+from the same per-frame, per-rover block that already runs the geofence
+check...~~ **As of #88, `TrackViewModel` feeds it** from that same block
+(`OnFrameApplied`, called by `StationViewModel` for every frame's rover) and
+owns `LapCount`/`LastLapDisplay` directly — `StationViewModel` itself no
+longer touches the lap timer at all.
 
 ---
 
@@ -206,3 +211,18 @@ misread a non-ASCII rover name as ANSI.
   `TrackView` now renders each segment as its own `Polyline` and the gap
   shows as a visible break. See CLAUDE.md's "Trail continuity across a
   rover gap (#80)" for the full mechanism.
+- **Fixed in #88.** #73 finished the View-side split but left every tab's
+  state and commands in one 673-line `StationViewModel`, silently inherited
+  as the `DataContext` by `FleetView`/`SettingsView` alike — nothing stopped
+  a Settings-only property from being bound, by accident, from Fleet's XAML.
+  `TrackViewModel`/`FleetViewModel`/`SettingsViewModel` (new) now each own
+  only their own tab's state and commands, resolved by their own
+  `DataTemplate` in `App.xaml` exactly the way `StationView` already was —
+  `StationView.xaml`'s `TabItem`s bind a `ContentControl` to the matching
+  child view model instead of naming a View type directly. The roster and
+  current selection, which the map, the Fleet grid, and drive control all
+  need to agree on, moved into a new standalone `RoverFleetState` singleton
+  rather than living on any one of them, so no view model has to reference
+  another to reach it — same treatment for the operator's speed-unit
+  preference via `SpeedUnitState`. See CLAUDE.md's "Splitting
+  StationViewModel into per-tab view models (#88)" for the full shape.

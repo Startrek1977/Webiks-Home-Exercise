@@ -15,6 +15,21 @@
             <views:StationView />
         </DataTemplate>
 
+        <!--
+            Same mechanism, one level down (#88): each tab's own view model
+            resolves its own View purely by type, so a tab's XAML can only
+            ever see its own view model's members - never another tab's.
+        -->
+        <DataTemplate DataType="{x:Type vm:TrackViewModel}">
+            <views:TrackTabView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:FleetViewModel}">
+            <views:FleetView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+            <views:SettingsView />
+        </DataTemplate>
+
         <SolidColorBrush x:Key="PanelBackground" Color="#FF1E2229" />
         <SolidColorBrush x:Key="PanelForeground" Color="#FFE6E9EF" />
         <SolidColorBrush x:Key="AccentBrush" Color="#FF3FA7D6" />

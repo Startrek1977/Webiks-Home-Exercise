@@ -55,6 +55,17 @@ namespace RoverRally.App
             services.AddSingleton<IDriveControllerRegistry, DriveControllerRegistry>();
             services.AddSingleton<IDialogService, DialogService>();
             services.AddSingleton<IDispatcherService, DispatcherService>();
+
+            // Cross-cutting state shared by whichever per-tab view models
+            // need it (#88) - standalone singletons rather than members of
+            // any one view model, so none of the view models below has to
+            // reference another to reach shared data.
+            services.AddSingleton<RoverFleetState>();
+            services.AddSingleton<SpeedUnitState>();
+
+            services.AddSingleton<TrackViewModel>();
+            services.AddSingleton<FleetViewModel>();
+            services.AddSingleton<SettingsViewModel>();
             services.AddSingleton<StationViewModel>();
             services.AddSingleton<MainWindow>();
         }
