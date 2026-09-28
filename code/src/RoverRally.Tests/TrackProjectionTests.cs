@@ -1,3 +1,4 @@
+using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoverRally.Core.Geo;
 using RoverRally.Core.Models;
@@ -163,6 +164,18 @@ namespace RoverRally.Tests
 
             Assert.AreEqual(original.Latitude, roundTripped.Latitude, 0.0000001);
             Assert.AreEqual(original.Longitude, roundTripped.Longitude, 0.0000001);
+        }
+
+        [TestMethod]
+        public void ConstructorThrowsWhenNorthEqualsSouth()
+        {
+            Assert.ThrowsExactly<ArgumentException>(() => new TrackProjection(10, 10, 0, 1, 100, 100));
+        }
+
+        [TestMethod]
+        public void ConstructorThrowsWhenEastEqualsWest()
+        {
+            Assert.ThrowsExactly<ArgumentException>(() => new TrackProjection(10, 0, 1, 1, 100, 100));
         }
     }
 }
