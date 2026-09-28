@@ -100,7 +100,17 @@ namespace RoverRally.Core.Telemetry
                     }
 
                     EventHandler<TelemetryReceivedEventArgs>? handler = FrameReceived;
-                    if (handler != null) handler(this, new TelemetryReceivedEventArgs(frame));
+                    if (handler != null)
+                    {
+                        try
+                        {
+                            handler(this, new TelemetryReceivedEventArgs(frame));
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Telemetry subscriber threw; frame dropped.");
+                        }
+                    }
                 }
                 catch (SocketException ex)
                 {
@@ -122,6 +132,26 @@ namespace RoverRally.Core.Telemetry
                 {
                     break;
                 }
+                catch (Exception ex)
+                {
+                    if (!_running)
+                    {
+                        _logger.LogError(ex, "Telemetry listener stopped after an unexpected exception.");
+                        break;
+                    }
+
+                    _logger.LogError(ex, "Telemetry listener faulted unexpectedly, rebinding.");
+                    SetReconnecting(true);
+
+                    if (_udp != null)
+                    {
+                        try { _udp.Close(); }
+                        catch (Exception close) { _logger.LogDebug("Closing faulted socket: " + close.Message); }
+                        _udp = null;
+                    }
+
+                    Thread.Sleep(2000);
+                }
             }
         }
 
@@ -132,7 +162,17 @@ namespace RoverRally.Core.Telemetry
             _reconnecting = value;
 
             EventHandler? handler = ConnectionStateChanged;
-            if (handler != null) handler(this, EventArgs.Empty);
+            if (handler != null)
+            {
+                try
+                {
+                    handler(this, EventArgs.Empty);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Telemetry connection-state subscriber threw.");
+                }
+            }
         }
 
         public void Dispose()

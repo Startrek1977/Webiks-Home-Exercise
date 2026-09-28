@@ -2,6 +2,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoverRally.Core.Telemetry;
 using RoverRally.Tests.TestSupport;
+using System;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading;
 
 namespace RoverRally.Tests
 {
@@ -31,6 +35,82 @@ namespace RoverRally.Tests
             finally
             {
                 client.Stop();
+            }
+        }
+
+        [TestMethod]
+        public void ASubscriberExceptionIsLoggedAndDoesNotKillTheListener()
+        {
+            CapturingLogger logger = new CapturingLogger();
+            TelemetryClient client = new TelemetryClient(logger);
+            int port = ReserveUdpPort();
+            int receivedCount = 0;
+
+            client.FrameReceived += delegate
+            {
+                Interlocked.Increment(ref receivedCount);
+                throw new InvalidOperationException("boom");
+            };
+
+            try
+            {
+                client.Start(port);
+                Thread.Sleep(150);
+
+                using (UdpClient sender = new UdpClient())
+                {
+                    byte[] first = SimulatorFrameWriter.WriteTelemetry(new TelemetryReading
+                    {
+                        RoverId = 7,
+                        Sequence = 1,
+                        TimestampMs = 1,
+                        LatitudeE7 = 322800000,
+                        LongitudeE7 = 349200000,
+                        HeadingDeci = 900,
+                        SpeedCmS = 250,
+                        BatteryMilliVolts = 12000,
+                        SignalPercent = 80,
+                        MotorTempDeciC = 200,
+                        TiltDeciDeg = 0,
+                        StatusFlags = 0x08
+                    });
+
+                    byte[] second = SimulatorFrameWriter.WriteTelemetry(new TelemetryReading
+                    {
+                        RoverId = 7,
+                        Sequence = 2,
+                        TimestampMs = 2,
+                        LatitudeE7 = 322800000,
+                        LongitudeE7 = 349200000,
+                        HeadingDeci = 900,
+                        SpeedCmS = 250,
+                        BatteryMilliVolts = 12000,
+                        SignalPercent = 80,
+                        MotorTempDeciC = 200,
+                        TiltDeciDeg = 0,
+                        StatusFlags = 0x08
+                    });
+
+                    sender.Send(first, first.Length, new IPEndPoint(IPAddress.Loopback, port));
+                    sender.Send(second, second.Length, new IPEndPoint(IPAddress.Loopback, port));
+                }
+
+                SpinWait.SpinUntil(() => Volatile.Read(ref receivedCount) >= 2, TimeSpan.FromSeconds(3));
+
+                Assert.AreEqual(2, receivedCount);
+                Assert.IsTrue(logger.HasEntry(LogLevel.Error, "Telemetry subscriber threw; frame dropped."));
+            }
+            finally
+            {
+                client.Stop();
+            }
+        }
+
+        private static int ReserveUdpPort()
+        {
+            using (UdpClient socket = new UdpClient(0))
+            {
+                return ((IPEndPoint)socket.Client.LocalEndPoint!).Port;
             }
         }
     }
