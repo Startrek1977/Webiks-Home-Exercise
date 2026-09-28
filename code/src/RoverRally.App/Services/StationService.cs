@@ -44,19 +44,48 @@ namespace RoverRally.App.Services
             }
 
             if (_started) return;
-            _started = true;
 
-            _commands = new CommandSender(StationSettings.CommandHost, StationSettings.CommandPort, Log.CreateLogger<CommandSender>());
+            try
+            {
+                _commands = new CommandSender(StationSettings.CommandHost, StationSettings.CommandPort, Log.CreateLogger<CommandSender>());
 
-            _telemetry = new TelemetryClient(Log.CreateLogger<TelemetryClient>());
-            _telemetry.FrameReceived += Telemetry_FrameReceived;
-            _telemetry.ConnectionStateChanged += Telemetry_ConnectionStateChanged;
-            _telemetry.Start(StationSettings.TelemetryPort);
+                _telemetry = new TelemetryClient(Log.CreateLogger<TelemetryClient>());
+                _telemetry.FrameReceived += Telemetry_FrameReceived;
+                _telemetry.ConnectionStateChanged += Telemetry_ConnectionStateChanged;
+                _telemetry.Start(StationSettings.TelemetryPort);
 
-            _driveTimer = new DispatcherTimer();
-            _driveTimer.Interval = TimeSpan.FromMilliseconds(StationSettings.DriveCommandIntervalMs);
-            _driveTimer.Tick += DriveTimer_Tick;
-            _driveTimer.Start();
+                _driveTimer = new DispatcherTimer();
+                _driveTimer.Interval = TimeSpan.FromMilliseconds(StationSettings.DriveCommandIntervalMs);
+                _driveTimer.Tick += DriveTimer_Tick;
+                _driveTimer.Start();
+
+                _started = true;
+            }
+            catch
+            {
+                if (_driveTimer != null)
+                {
+                    _driveTimer.Stop();
+                    _driveTimer.Tick -= DriveTimer_Tick;
+                    _driveTimer = null;
+                }
+
+                if (_telemetry != null)
+                {
+                    _telemetry.FrameReceived -= Telemetry_FrameReceived;
+                    _telemetry.ConnectionStateChanged -= Telemetry_ConnectionStateChanged;
+                    _telemetry.Dispose();
+                    _telemetry = null;
+                }
+
+                if (_commands != null)
+                {
+                    _commands.Dispose();
+                    _commands = null;
+                }
+
+                throw;
+            }
         }
 
         public void Stop()
