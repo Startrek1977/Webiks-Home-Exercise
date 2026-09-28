@@ -71,6 +71,7 @@ namespace RoverRally.Core.Export
                 || firstCharacter == '-'
                 || firstCharacter == '@'
                 || firstCharacter == '\t'
+                || firstCharacter == '\n'
                 || firstCharacter == '\r';
         }
     }
