@@ -17,6 +17,7 @@ namespace RoverRally.Core.Telemetry
 
         private UdpClient? _udp;
         private Thread? _worker;
+        private readonly ManualResetEventSlim _stopSignal = new ManualResetEventSlim(false);
         private volatile bool _running;
         private volatile bool _reconnecting;
         private int _port;
@@ -54,6 +55,7 @@ namespace RoverRally.Core.Telemetry
 
             _port = port;
             _running = true;
+            _stopSignal.Reset();
 
             _worker = new Thread(Listen);
             _worker.IsBackground = true;
@@ -66,6 +68,7 @@ namespace RoverRally.Core.Telemetry
         public void Stop()
         {
             _running = false;
+            _stopSignal.Set();
 
             if (_udp != null)
             {
@@ -126,7 +129,7 @@ namespace RoverRally.Core.Telemetry
                         _udp = null;
                     }
 
-                    Thread.Sleep(2000);
+                    _stopSignal.Wait(2000);
                 }
                 catch (ObjectDisposedException)
                 {
@@ -150,7 +153,7 @@ namespace RoverRally.Core.Telemetry
                         _udp = null;
                     }
 
-                    Thread.Sleep(2000);
+                    _stopSignal.Wait(2000);
                 }
             }
         }
@@ -178,6 +181,7 @@ namespace RoverRally.Core.Telemetry
         public void Dispose()
         {
             Stop();
+            _stopSignal.Dispose();
         }
     }
 }
