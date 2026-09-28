@@ -1,3 +1,4 @@
+using System;
 using RoverRally.Core.Models;
 
 namespace RoverRally.Core.Geo
