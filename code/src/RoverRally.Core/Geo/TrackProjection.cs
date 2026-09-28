@@ -1,3 +1,4 @@
+using System;
 using RoverRally.Core.Models;
 
 namespace RoverRally.Core.Geo
@@ -18,6 +19,9 @@ namespace RoverRally.Core.Geo
 
         public TrackProjection(double north, double south, double west, double east, double widthPixels, double heightPixels)
         {
+            if (north == south) throw new ArgumentException("North and south bounds must differ.", nameof(south));
+            if (east == west) throw new ArgumentException("East and west bounds must differ.", nameof(east));
+
             _north = north;
             _south = south;
             _west = west;

@@ -37,6 +37,10 @@ namespace RoverRally.App.Services
 
         public void Start()
         {
+            if (_geofence == null || _lapTimers == null)
+                throw new InvalidOperationException("Initialize must be called before Start.");
+            if (_telemetry != null) return;
+
             _commands = new CommandSender(StationSettings.CommandHost, StationSettings.CommandPort, Log.CreateLogger<CommandSender>());
 
             _telemetry = new TelemetryClient(Log.CreateLogger<TelemetryClient>());

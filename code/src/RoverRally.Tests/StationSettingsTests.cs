@@ -8,13 +8,17 @@ namespace RoverRally.Tests
     public class StationSettingsTests
     {
         /// <summary>
-        /// Nothing else in this test assembly calls <see cref="StationSettings.Configure"/>,
-        /// so a config-backed property is guaranteed to still be unconfigured here
-        /// regardless of test execution order.
+        /// Other test classes call <see cref="StationSettings.Configure"/>, so the
+        /// static options are cleared first to make this independent of test
+        /// execution order.
         /// </summary>
         [TestMethod]
         public void ReadingAConfigBackedPropertyBeforeConfigureThrows()
         {
+            typeof(StationSettings)
+                .GetField("_options", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+                .SetValue(null, null);
+
             Assert.ThrowsExactly<InvalidOperationException>(() => _ = StationSettings.TelemetryPort);
         }
 
