@@ -18,6 +18,9 @@ namespace RoverRally.Core.Geo
 
         public TrackProjection(double north, double south, double west, double east, double widthPixels, double heightPixels)
         {
+            if (north == south) throw new System.ArgumentException("North and south must differ.", nameof(north));
+            if (east == west) throw new System.ArgumentException("East and west must differ.", nameof(east));
+
             _north = north;
             _south = south;
             _west = west;

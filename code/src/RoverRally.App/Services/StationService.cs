@@ -15,6 +15,7 @@ namespace RoverRally.App.Services
         private DispatcherTimer _driveTimer = null!;
         private GeofenceMonitor _geofence = null!;
         private LapTimerRegistry _lapTimers = null!;
+        private bool _started;
 
         public TelemetryClient TelemetryClient => _telemetry;
         public CommandSender CommandSender => _commands;
@@ -37,6 +38,13 @@ namespace RoverRally.App.Services
 
         public void Start()
         {
+            if (_geofence == null || _lapTimers == null)
+            {
+                throw new InvalidOperationException("StationService.Initialize must be called before Start.");
+            }
+
+            if (_started) return;
+
             _commands = new CommandSender(StationSettings.CommandHost, StationSettings.CommandPort, Log.CreateLogger<CommandSender>());
 
             _telemetry = new TelemetryClient(Log.CreateLogger<TelemetryClient>());
@@ -48,6 +56,7 @@ namespace RoverRally.App.Services
             _driveTimer.Interval = TimeSpan.FromMilliseconds(StationSettings.DriveCommandIntervalMs);
             _driveTimer.Tick += DriveTimer_Tick;
             _driveTimer.Start();
+            _started = true;
         }
 
         public void Stop()
@@ -55,6 +64,7 @@ namespace RoverRally.App.Services
             if (_driveTimer != null) _driveTimer.Stop();
             if (_telemetry != null) _telemetry.Dispose();
             if (_commands != null) _commands.Dispose();
+            _started = false;
         }
 
         private void Telemetry_FrameReceived(object? sender, TelemetryReceivedEventArgs e)
