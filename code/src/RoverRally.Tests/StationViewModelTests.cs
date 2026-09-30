@@ -75,5 +75,20 @@ namespace RoverRally.Tests
 
             Assert.AreEqual(250, rover.SpeedCmS);
         }
+
+        [TestMethod]
+        public void FrameReceivedCountsFramesEvenWhenTheRoverIsUnknown()
+        {
+            TelemetryFrame frame = new TelemetryFrame(
+                roverId: 99, sequence: 1, timestampMs: 0,
+                latitudeE7: 0, longitudeE7: 0,
+                headingDeci: 900, speedCmS: 250, batteryMilliVolts: 12000,
+                signalPercent: 80, motorTempDeciC: 200, tiltDeciDeg: 0,
+                statusFlags: 0);
+
+            _service.RaiseFrameReceived(frame);
+
+            Assert.AreEqual("1 frames", _vm.FrameCounterDisplay);
+        }
     }
 }

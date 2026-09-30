@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoverRally.Core.Configuration;
 
@@ -7,15 +8,23 @@ namespace RoverRally.Tests
     [TestClass]
     public class StationSettingsTests
     {
-        /// <summary>
-        /// Nothing else in this test assembly calls <see cref="StationSettings.Configure"/>,
-        /// so a config-backed property is guaranteed to still be unconfigured here
-        /// regardless of test execution order.
-        /// </summary>
         [TestMethod]
+        [DoNotParallelize]
         public void ReadingAConfigBackedPropertyBeforeConfigureThrows()
         {
-            Assert.ThrowsExactly<InvalidOperationException>(() => _ = StationSettings.TelemetryPort);
+            FieldInfo optionsField = typeof(StationSettings).GetField("_options", BindingFlags.NonPublic | BindingFlags.Static)
+                ?? throw new InvalidOperationException("StationSettings options field was not found.");
+            object? configuredOptions = optionsField.GetValue(null);
+
+            try
+            {
+                optionsField.SetValue(null, null);
+                Assert.ThrowsExactly<InvalidOperationException>(() => _ = StationSettings.TelemetryPort);
+            }
+            finally
+            {
+                optionsField.SetValue(null, configuredOptions);
+            }
         }
 
         [TestMethod]

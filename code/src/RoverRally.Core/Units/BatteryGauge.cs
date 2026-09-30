@@ -25,7 +25,7 @@ namespace RoverRally.Core.Units
         /// <see cref="ILogger"/> overload directly rather than going through
         /// this field.
         /// </summary>
-        private static ILogger? _logger;
+        private static readonly Lazy<ILogger> Logger = new Lazy<ILogger>(() => Log.CreateLogger(nameof(BatteryGauge)));
 
         /// <summary>
         /// A pack at or below <see cref="EmptyMilliVolts"/> - including a
@@ -37,8 +37,7 @@ namespace RoverRally.Core.Units
         /// </summary>
         public static int ToPercent(int milliVolts)
         {
-            if (_logger == null) _logger = Log.CreateLogger(nameof(BatteryGauge));
-            return ToPercent(milliVolts, _logger);
+            return ToPercent(milliVolts, Logger.Value);
         }
 
         /// <summary>

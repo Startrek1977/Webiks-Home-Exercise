@@ -52,9 +52,9 @@ namespace RoverRally.Core.Session
             if (trailingBytes != 0)
             {
                 logger.LogWarning(string.Format(
-                    "Session cache at {0} is {1} byte(s) short of a whole number of {2}-byte records; "
-                    + "the trailing {1} byte(s) look truncated or corrupted and are being discarded.",
-                    path, trailingBytes, RecordSize));
+                    "Session cache at {0} is {1} byte(s), not a whole number of {2}-byte records; "
+                    + "the trailing {3} byte(s) look truncated or corrupted and are being discarded.",
+                    path, raw.Length, RecordSize, trailingBytes));
             }
 
             for (int i = 0; i < count; i++)

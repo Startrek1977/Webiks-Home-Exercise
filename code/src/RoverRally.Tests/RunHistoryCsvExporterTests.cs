@@ -56,6 +56,23 @@ namespace RoverRally.Tests
             StringAssert.Contains(csv, "\"O\"\"Brien, Ch. 2\"");
         }
 
+        [DataTestMethod]
+        [DataRow("=SUM(1,1)")]
+        [DataRow("+SUM(1,1)")]
+        [DataRow("-SUM(1,1)")]
+        [DataRow("@SUM(1,1)")]
+        [DataRow("\tSUM(1,1)")]
+        [DataRow("\nSUM(1,1)")]
+        [DataRow("\rSUM(1,1)")]
+        public void PrefixesSpreadsheetFormulaTriggersWithASingleQuote(string roverName)
+        {
+            SessionCacheRecord record = MakeRecord(1, DateTime.UtcNow, DateTime.UtcNow, 0, 0);
+
+            string csv = RunHistoryCsvExporter.BuildCsv(new[] { record }, id => roverName);
+
+            StringAssert.Contains(csv, "\"'" + roverName.Replace("\"", "\"\"") + "\"");
+        }
+
         [TestMethod]
         public void StaysInvariantEvenUnderACommaDecimalCulture()
         {
