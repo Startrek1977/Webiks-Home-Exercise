@@ -13,13 +13,22 @@ namespace RoverRally.Tests
         /// execution order.
         /// </summary>
         [TestMethod]
+        [DoNotParallelize]
         public void ReadingAConfigBackedPropertyBeforeConfigureThrows()
         {
-            typeof(StationSettings)
-                .GetField("_options", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
-                .SetValue(null, null);
+            System.Reflection.FieldInfo optionsField = typeof(StationSettings)
+                .GetField("_options", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+            object? originalOptions = optionsField.GetValue(null);
 
-            Assert.ThrowsExactly<InvalidOperationException>(() => _ = StationSettings.TelemetryPort);
+            try
+            {
+                optionsField.SetValue(null, null);
+                Assert.ThrowsExactly<InvalidOperationException>(() => _ = StationSettings.TelemetryPort);
+            }
+            finally
+            {
+                optionsField.SetValue(null, originalOptions);
+            }
         }
 
         [TestMethod]
