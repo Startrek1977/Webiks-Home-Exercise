@@ -21,6 +21,8 @@ namespace RoverRally.Core.Geo
         {
             if (north == south) throw new ArgumentException("North and south bounds must differ.", nameof(south));
             if (east == west) throw new ArgumentException("East and west bounds must differ.", nameof(east));
+            if (!double.IsFinite(widthPixels) || widthPixels <= 0) throw new ArgumentOutOfRangeException(nameof(widthPixels), "Width must be finite and positive.");
+            if (!double.IsFinite(heightPixels) || heightPixels <= 0) throw new ArgumentOutOfRangeException(nameof(heightPixels), "Height must be finite and positive.");
 
             _north = north;
             _south = south;
