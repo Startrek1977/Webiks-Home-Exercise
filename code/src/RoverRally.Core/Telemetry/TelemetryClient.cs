@@ -17,6 +17,7 @@ namespace RoverRally.Core.Telemetry
 
         private UdpClient? _udp;
         private Thread? _worker;
+        private readonly ManualResetEventSlim _stopSignal = new ManualResetEventSlim(false);
         private volatile bool _running;
         private volatile bool _reconnecting;
         private int _port;
@@ -54,6 +55,7 @@ namespace RoverRally.Core.Telemetry
 
             _port = port;
             _running = true;
+            _stopSignal.Reset();
 
             _worker = new Thread(Listen);
             _worker.IsBackground = true;
@@ -66,6 +68,7 @@ namespace RoverRally.Core.Telemetry
         public void Stop()
         {
             _running = false;
+            _stopSignal.Set();
 
             if (_udp != null)
             {
@@ -73,6 +76,16 @@ namespace RoverRally.Core.Telemetry
                 catch (Exception ex) { _logger.LogDebug("Closing telemetry socket: " + ex.Message); }
                 _udp = null;
             }
+
+            Thread? worker = _worker;
+            if (worker != null && worker != Thread.CurrentThread)
+            {
+                if (!worker.Join(TimeSpan.FromSeconds(3)))
+                {
+                    _logger.LogWarning("Telemetry listener thread did not stop within timeout.");
+                }
+            }
+            _worker = null;
 
             _logger.LogInformation("Telemetry listener stopped.");
         }
@@ -100,7 +113,17 @@ namespace RoverRally.Core.Telemetry
                     }
 
                     EventHandler<TelemetryReceivedEventArgs>? handler = FrameReceived;
-                    if (handler != null) handler(this, new TelemetryReceivedEventArgs(frame));
+                    if (handler != null)
+                    {
+                        try
+                        {
+                            handler(this, new TelemetryReceivedEventArgs(frame));
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Telemetry subscriber threw; frame dropped.");
+                        }
+                    }
                 }
                 catch (SocketException ex)
                 {
@@ -116,11 +139,31 @@ namespace RoverRally.Core.Telemetry
                         _udp = null;
                     }
 
-                    Thread.Sleep(2000);
+                    _stopSignal.Wait(2000);
                 }
                 catch (ObjectDisposedException)
                 {
                     break;
+                }
+                catch (Exception ex)
+                {
+                    if (!_running)
+                    {
+                        _logger.LogError(ex, "Telemetry listener stopped after an unexpected exception.");
+                        break;
+                    }
+
+                    _logger.LogError(ex, "Telemetry listener faulted unexpectedly, rebinding.");
+                    SetReconnecting(true);
+
+                    if (_udp != null)
+                    {
+                        try { _udp.Close(); }
+                        catch (Exception close) { _logger.LogDebug("Closing faulted socket: " + close.Message); }
+                        _udp = null;
+                    }
+
+                    _stopSignal.Wait(2000);
                 }
             }
         }
@@ -132,12 +175,23 @@ namespace RoverRally.Core.Telemetry
             _reconnecting = value;
 
             EventHandler? handler = ConnectionStateChanged;
-            if (handler != null) handler(this, EventArgs.Empty);
+            if (handler != null)
+            {
+                try
+                {
+                    handler(this, EventArgs.Empty);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Telemetry connection-state subscriber threw.");
+                }
+            }
         }
 
         public void Dispose()
         {
             Stop();
+            _stopSignal.Dispose();
         }
     }
 }

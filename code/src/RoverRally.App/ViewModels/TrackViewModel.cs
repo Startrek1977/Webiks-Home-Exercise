@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -151,6 +152,8 @@ namespace RoverRally.App.ViewModels
         /// </summary>
         public void OnFrameApplied(Rover rover, TelemetryFrame frame, DateTime receivedUtc)
         {
+            if (!Rovers.Any(r => ReferenceEquals(r, rover) || r.Id == rover.Id)) return;
+
             if (frame.HasGpsFix)
             {
                 if (_service.Geofence.IsOutside(rover.Id, rover.Position))
@@ -183,7 +186,7 @@ namespace RoverRally.App.ViewModels
 
         private void DriveTimer_Tick(object? sender, EventArgs e)
         {
-            Rover? rover = SelectedRover;
+            Rover? rover = RequireSelection();
             if (rover == null) return;
 
             DriveController drive = _driveControllers.For(rover.Id);
@@ -204,17 +207,15 @@ namespace RoverRally.App.ViewModels
                         "Treating it as latched until re-armed.");
             }
 
-            _service.CommandSender.Send(rover.Id, command.Throttle, command.Steering,
-                                        command.EmergencyStop, command.Armed);
+            SendStationCommand(rover, command);
         }
 
         [RelayCommand]
         private void Arm()
         {
-            Rover? rover = SelectedRover;
+            Rover? rover = RequireSelection(true, MessageBoxImage.Information);
             if (rover == null)
             {
-                _dialogService.ShowMessage("Select a rover first.", "RoverRally", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -235,8 +236,7 @@ namespace RoverRally.App.ViewModels
 
             UpdateDriveDisplay();
 
-            _service.CommandSender.Send(rover.Id, command.Throttle, command.Steering,
-                                        command.EmergencyStop, command.Armed);
+            SendStationCommand(rover, command);
 
             if (stopWasHeld && !drive.IsEmergencyStopLatched)
             {
@@ -249,12 +249,12 @@ namespace RoverRally.App.ViewModels
         [RelayCommand]
         private void EmergencyStop()
         {
-            Rover? rover = SelectedRover;
+            Rover? rover = RequireSelection(true, MessageBoxImage.Warning,
+                                           "Emergency stop pressed with no rover selected; no command sent.");
             if (rover == null) return;
 
             StationCommand command = _driveControllers.For(rover.Id).EngageEmergencyStop();
-            _service.CommandSender.Send(rover.Id, command.Throttle, command.Steering,
-                                       command.EmergencyStop, command.Armed);
+            SendStationCommand(rover, command);
 
             UpdateDriveDisplay();
 
@@ -272,6 +272,28 @@ namespace RoverRally.App.ViewModels
             }
 
             _dialogService.ShowMessage(message, "RoverRally", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        private Rover? RequireSelection(bool notifyOperator = false, MessageBoxImage icon = MessageBoxImage.Information,
+                                        string? missingSelectionLog = null)
+        {
+            Rover? rover = SelectedRover;
+            if (rover != null) return rover;
+
+            if (missingSelectionLog != null) Log.Warn(missingSelectionLog);
+
+            if (notifyOperator)
+            {
+                _dialogService.ShowMessage("Select a rover first.", "RoverRally", MessageBoxButton.OK, icon);
+            }
+
+            return null;
+        }
+
+        private void SendStationCommand(Rover rover, StationCommand command)
+        {
+            _service.CommandSender.Send(rover.Id, command.Throttle, command.Steering,
+                                        command.EmergencyStop, command.Armed);
         }
 
         /// <summary>

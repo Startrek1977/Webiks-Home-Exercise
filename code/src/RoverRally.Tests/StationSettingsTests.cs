@@ -9,9 +9,11 @@ namespace RoverRally.Tests
     public class StationSettingsTests
     {
         [TestMethod]
+        [DoNotParallelize]
         public void ReadingAConfigBackedPropertyBeforeConfigureThrows()
         {
-            FieldInfo optionsField = typeof(StationSettings).GetField("_options", BindingFlags.Static | BindingFlags.NonPublic)!;
+            FieldInfo optionsField = typeof(StationSettings).GetField("_options", BindingFlags.NonPublic | BindingFlags.Static)
+                ?? throw new InvalidOperationException("StationSettings options field was not found.");
             object? configuredOptions = optionsField.GetValue(null);
 
             try

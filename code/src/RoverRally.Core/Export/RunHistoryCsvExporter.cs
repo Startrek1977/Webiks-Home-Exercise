@@ -56,7 +56,23 @@ namespace RoverRally.Core.Export
 
         private static string QuoteField(string value)
         {
+            if (!string.IsNullOrEmpty(value) && StartsWithFormulaTrigger(value[0]))
+            {
+                value = "'" + value;
+            }
+
             return "\"" + value.Replace("\"", "\"\"") + "\"";
+        }
+
+        private static bool StartsWithFormulaTrigger(char firstCharacter)
+        {
+            return firstCharacter == '='
+                || firstCharacter == '+'
+                || firstCharacter == '-'
+                || firstCharacter == '@'
+                || firstCharacter == '\t'
+                || firstCharacter == '\n'
+                || firstCharacter == '\r';
         }
     }
 }

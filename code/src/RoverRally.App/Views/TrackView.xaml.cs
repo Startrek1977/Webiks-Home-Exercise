@@ -168,6 +168,8 @@ namespace RoverRally.App.Views
 
         private void Subscribe(Rover rover)
         {
+            if (_subscribedRovers.ContainsKey(rover.Id)) return;
+
             rover.PropertyChanged += Rover_PropertyChanged;
             _subscribedRovers[rover.Id] = rover;
             Redraw(rover);
