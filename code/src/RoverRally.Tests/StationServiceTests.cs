@@ -1,9 +1,10 @@
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using RoverRally.App.Services;
+using RoverRally.Core.Services;
 using RoverRally.Core.Configuration;
 using RoverRally.Core.Control;
 using RoverRally.Core.Geo;
+using RoverRally.Core.Models;
 
 namespace RoverRally.Tests
 {
