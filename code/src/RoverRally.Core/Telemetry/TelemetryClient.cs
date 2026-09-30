@@ -77,6 +77,16 @@ namespace RoverRally.Core.Telemetry
                 _udp = null;
             }
 
+            Thread? worker = _worker;
+            if (worker != null && worker != Thread.CurrentThread)
+            {
+                if (!worker.Join(TimeSpan.FromSeconds(3)))
+                {
+                    _logger.LogWarning("Telemetry listener thread did not stop within timeout.");
+                }
+            }
+            _worker = null;
+
             _logger.LogInformation("Telemetry listener stopped.");
         }
 
