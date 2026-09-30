@@ -14,6 +14,11 @@ namespace RoverRally.Tests
         [TestInitialize]
         public void Setup()
         {
+            ConfigureStationSettings(200);
+        }
+
+        private static void ConfigureStationSettings(int driveCommandIntervalMs)
+        {
             StationSettings.Configure(new StationOptions
             {
                 StationName = "Test Station",
@@ -26,7 +31,7 @@ namespace RoverRally.Tests
                 TrackSouth = 0,
                 TrackWest = 0,
                 TrackEast = 10,
-                DriveCommandIntervalMs = 200,
+                DriveCommandIntervalMs = driveCommandIntervalMs,
                 LogLevel = RoverRally.Core.Logging.LogLevel.Info,
                 LogDirectory = System.IO.Path.GetTempPath()
             });
@@ -56,6 +61,29 @@ namespace RoverRally.Tests
 
                 Assert.AreSame(telemetry, service.TelemetryClient);
                 Assert.AreSame(commands, service.CommandSender);
+            }
+            finally
+            {
+                service.Stop();
+            }
+        }
+
+        [TestMethod]
+        public void StartCanBeRetriedAfterStartupFailure()
+        {
+            StationService service = new StationService();
+            service.Initialize(new GeofenceMonitor(Array.Empty<TrackPoint>()), new LapTimerRegistry(new TrackPoint(0, 0), new TrackPoint(0, 0)));
+            ConfigureStationSettings(-1);
+
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => service.Start());
+            Assert.IsNull(service.TelemetryClient);
+
+            ConfigureStationSettings(200);
+
+            try
+            {
+                service.Start();
+                Assert.IsTrue(service.TelemetryClient.IsRunning);
             }
             finally
             {
