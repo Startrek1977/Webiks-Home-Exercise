@@ -76,7 +76,7 @@ namespace RoverRally.Tests
             ConfigureStationSettings(-1);
 
             Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => service.Start());
-            Assert.IsNull(service.TelemetryClient);
+            Assert.ThrowsExactly<InvalidOperationException>(() => _ = service.TelemetryClient);
 
             ConfigureStationSettings(200);
 
