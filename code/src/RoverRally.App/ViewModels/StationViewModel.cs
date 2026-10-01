@@ -151,13 +151,13 @@ namespace RoverRally.App.ViewModels
 
         private void ApplyFrame(TelemetryFrame frame, DateTime receivedUtc)
         {
+            _frameCount++;
+            FrameCounterDisplay = _frameCount + " frames";
+
             Rover? rover = _fleetState.Rovers.FirstOrDefault(r => r.Id == frame.RoverId);
             if (rover == null) return;
 
             rover.ApplyFrame(frame, receivedUtc);
-
-            _frameCount++;
-            FrameCounterDisplay = _frameCount + " frames";
 
             TrackViewModel.OnFrameApplied(rover, frame, receivedUtc);
         }

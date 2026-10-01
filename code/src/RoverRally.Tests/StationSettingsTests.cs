@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoverRally.Core.Configuration;
 
@@ -7,18 +8,13 @@ namespace RoverRally.Tests
     [TestClass]
     public class StationSettingsTests
     {
-        /// <summary>
-        /// Other test classes call <see cref="StationSettings.Configure"/>, so the
-        /// static options are cleared first to make this independent of test
-        /// execution order.
-        /// </summary>
         [TestMethod]
         [DoNotParallelize]
         public void ReadingAConfigBackedPropertyBeforeConfigureThrows()
         {
-            System.Reflection.FieldInfo optionsField = typeof(StationSettings)
-                .GetField("_options", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
-            object? originalOptions = optionsField.GetValue(null);
+            FieldInfo optionsField = typeof(StationSettings).GetField("_options", BindingFlags.NonPublic | BindingFlags.Static)
+                ?? throw new InvalidOperationException("StationSettings options field was not found.");
+            object? configuredOptions = optionsField.GetValue(null);
 
             try
             {
@@ -27,7 +23,7 @@ namespace RoverRally.Tests
             }
             finally
             {
-                optionsField.SetValue(null, originalOptions);
+                optionsField.SetValue(null, configuredOptions);
             }
         }
 

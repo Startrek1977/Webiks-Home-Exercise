@@ -73,6 +73,7 @@ namespace RoverRally.App
         protected override void OnExit(ExitEventArgs e)
         {
             Log.Info("Station shutting down.");
+            (_serviceProvider as IDisposable)?.Dispose();
             Log.Shutdown();
             base.OnExit(e);
         }

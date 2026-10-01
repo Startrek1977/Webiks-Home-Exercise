@@ -10,17 +10,17 @@ namespace RoverRally.App.Services
 {
     public class StationService : IStationService
     {
-        private TelemetryClient _telemetry = null!;
-        private CommandSender _commands = null!;
-        private DispatcherTimer _driveTimer = null!;
-        private GeofenceMonitor _geofence = null!;
-        private LapTimerRegistry _lapTimers = null!;
+        private TelemetryClient? _telemetry;
+        private CommandSender? _commands;
+        private DispatcherTimer? _driveTimer;
+        private GeofenceMonitor? _geofence;
+        private LapTimerRegistry? _lapTimers;
         private bool _started;
 
-        public TelemetryClient TelemetryClient => _telemetry;
-        public CommandSender CommandSender => _commands;
-        public GeofenceMonitor Geofence => _geofence;
-        public LapTimerRegistry LapTimers => _lapTimers;
+        public TelemetryClient TelemetryClient => _telemetry ?? throw new InvalidOperationException("Start must be called before accessing TelemetryClient.");
+        public CommandSender CommandSender => _commands ?? throw new InvalidOperationException("Start must be called before accessing CommandSender.");
+        public GeofenceMonitor Geofence => _geofence ?? throw new InvalidOperationException("Initialize must be called before accessing Geofence.");
+        public LapTimerRegistry LapTimers => _lapTimers ?? throw new InvalidOperationException("Initialize must be called before accessing LapTimers.");
 
         public event EventHandler<TelemetryReceivedEventArgs>? FrameReceived;
         public event EventHandler? ConnectionStateChanged;
@@ -39,7 +39,10 @@ namespace RoverRally.App.Services
         public void Start()
         {
             if (_geofence == null || _lapTimers == null)
+            {
                 throw new InvalidOperationException("Initialize must be called before Start.");
+            }
+
             if (_started) return;
 
             try
@@ -55,22 +58,46 @@ namespace RoverRally.App.Services
                 _driveTimer.Interval = TimeSpan.FromMilliseconds(StationSettings.DriveCommandIntervalMs);
                 _driveTimer.Tick += DriveTimer_Tick;
                 _driveTimer.Start();
+
                 _started = true;
             }
             catch
             {
-                CleanupFailedStart();
+                if (_driveTimer != null)
+                {
+                    _driveTimer.Stop();
+                    _driveTimer.Tick -= DriveTimer_Tick;
+                    _driveTimer = null;
+                }
+
+                if (_telemetry != null)
+                {
+                    _telemetry.FrameReceived -= Telemetry_FrameReceived;
+                    _telemetry.ConnectionStateChanged -= Telemetry_ConnectionStateChanged;
+                    _telemetry.Dispose();
+                    _telemetry = null;
+                }
+
+                if (_commands != null)
+                {
+                    _commands.Dispose();
+                    _commands = null;
+                }
+
                 throw;
             }
         }
 
-        private void CleanupFailedStart()
+        public void Stop()
         {
+            if (!_started) return;
+            _started = false;
+
             if (_driveTimer != null)
             {
-                _driveTimer.Tick -= DriveTimer_Tick;
                 _driveTimer.Stop();
-                _driveTimer = null!;
+                _driveTimer.Tick -= DriveTimer_Tick;
+                _driveTimer = null;
             }
 
             if (_telemetry != null)
@@ -78,21 +105,14 @@ namespace RoverRally.App.Services
                 _telemetry.FrameReceived -= Telemetry_FrameReceived;
                 _telemetry.ConnectionStateChanged -= Telemetry_ConnectionStateChanged;
                 _telemetry.Dispose();
-                _telemetry = null!;
+                _telemetry = null;
             }
 
             if (_commands != null)
             {
                 _commands.Dispose();
-                _commands = null!;
+                _commands = null;
             }
-        }
-
-        public void Stop()
-        {
-            if (_driveTimer != null) _driveTimer.Stop();
-            if (_telemetry != null) _telemetry.Dispose();
-            if (_commands != null) _commands.Dispose();
         }
 
         private void Telemetry_FrameReceived(object? sender, TelemetryReceivedEventArgs e)

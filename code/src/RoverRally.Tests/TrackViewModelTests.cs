@@ -1,7 +1,9 @@
+using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoverRally.App.ViewModels;
 using RoverRally.Core.Control;
 using RoverRally.Core.Models;
+using RoverRally.Core.Telemetry;
 using RoverRally.Tests.TestSupport;
 
 namespace RoverRally.Tests
@@ -79,11 +81,12 @@ namespace RoverRally.Tests
         }
 
         [TestMethod]
-        public void EmergencyStopCommandWithNoSelectedRoverDoesNothing()
+        public void EmergencyStopCommandWithNoSelectedRoverWarnsTheOperator()
         {
             _vm.EmergencyStopCommand.Execute(null);
 
-            Assert.AreEqual(0, _dialogs.Messages.Count);
+            Assert.AreEqual(1, _dialogs.Messages.Count);
+            StringAssert.Contains(_dialogs.Messages[0], "Select a rover first");
         }
 
         [TestMethod]
@@ -99,6 +102,26 @@ namespace RoverRally.Tests
             Assert.IsTrue(_vm.DriveStateIsLatched);
             Assert.AreEqual(1, _dialogs.Messages.Count);
             StringAssert.Contains(_dialogs.Messages[0], rover.Name);
+        }
+
+        [TestMethod]
+        public void OnFrameAppliedIgnoresARoverThatIsNotInTheRoster()
+        {
+            Rover outsider = new Rover { Id = 9, Name = "Outsider" };
+            TelemetryFrame frame = new TelemetryFrame(outsider.Id, 1, 0, 0, 0, 0, 0, 12000, 80, 200, 0, statusFlags: 0x08);
+
+            _vm.OnFrameApplied(outsider, frame, DateTime.UtcNow);
+
+            Assert.AreEqual(0, GetLapTimerCount(_service.LapTimers));
+        }
+
+        private static int GetLapTimerCount(LapTimerRegistry registry)
+        {
+            System.Reflection.FieldInfo field = typeof(LapTimerRegistry)
+                .GetField("_timers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+
+            System.Collections.IDictionary timers = (System.Collections.IDictionary)field.GetValue(registry)!;
+            return timers.Count;
         }
     }
 }

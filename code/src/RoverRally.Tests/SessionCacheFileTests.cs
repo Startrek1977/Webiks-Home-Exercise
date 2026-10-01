@@ -246,6 +246,8 @@ namespace RoverRally.Tests
                 SessionCacheFile.Read(path, logger);
 
                 Assert.IsTrue(logger.HasEntry(LogLevel.Warning, "truncated or corrupted"));
+                Assert.IsTrue(logger.HasEntry(LogLevel.Warning, "is 37 byte(s), not a whole number of 32-byte records"));
+                Assert.IsTrue(logger.HasEntry(LogLevel.Warning, "the trailing 5 byte(s)"));
             }
             finally
             {
