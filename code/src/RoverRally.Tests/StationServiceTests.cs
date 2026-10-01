@@ -73,21 +73,21 @@ namespace RoverRally.Tests
         {
             StationService service = new StationService();
             service.Initialize(new GeofenceMonitor(Array.Empty<TrackPoint>()), new LapTimerRegistry(new TrackPoint(0, 0), new TrackPoint(0, 0)));
-            ConfigureStationSettings(-1);
-
-            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => service.Start());
-            Assert.ThrowsExactly<InvalidOperationException>(() => _ = service.TelemetryClient);
-
-            ConfigureStationSettings(200);
-
             try
             {
+                ConfigureStationSettings(-1);
+
+                Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => service.Start());
+                Assert.ThrowsExactly<InvalidOperationException>(() => _ = service.TelemetryClient);
+
+                ConfigureStationSettings(200);
                 service.Start();
                 Assert.IsTrue(service.TelemetryClient.IsRunning);
             }
             finally
             {
                 service.Stop();
+                ConfigureStationSettings(200);
             }
         }
 
